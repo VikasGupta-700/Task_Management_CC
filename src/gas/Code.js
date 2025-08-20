@@ -24,6 +24,25 @@ function onOpen() {
     .addToUi();
 }
 
+/**
+ * Web app entry point for standalone dashboard access
+ * Deploy this script as a Web App to get a direct URL to the dashboard
+ */
+function doGet() {
+  try {
+    const dashboardData = getDashboardData();
+    const htmlTemplate = HtmlService.createTemplateFromFile('dashboard');
+    htmlTemplate.dashboardData = dashboardData;
+    
+    return htmlTemplate.evaluate()
+      .setTitle('Task Management Dashboard')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+      
+  } catch (error) {
+    return HtmlService.createHtmlOutput('<h1>Error loading dashboard</h1><p>' + error.toString() + '</p>');
+  }
+}
+
 // =============================================================================
 // SINGLE SHEET CREATION
 // =============================================================================
@@ -42,11 +61,11 @@ function createSingleSheet() {
     
     // Ensure we're working with a data row (not header)
     if (activeRow < 2) {
-      ui.alert('Please select a data row (row 2 or below) in the Task Master sheet.');
+      ui.alert('Please select a data row (row 2 or below) in the Sheets_Master sheet.');
       return;
     }
     
-    const masterSheet = getTaskMasterSheet();
+    const masterSheet = getSheetsMasterSheet();
     const rowData = masterSheet.getRange(activeRow, 1, 1, 12).getValues()[0];
     
     // Check if sheet already exists (Column D has URL)
@@ -100,11 +119,11 @@ function bulkCreatePendingSheets() {
       return;
     }
     
-    const masterSheet = getTaskMasterSheet();
+    const masterSheet = getSheetsMasterSheet();
     const lastRow = masterSheet.getLastRow();
     
     if (lastRow < 2) {
-      ui.alert('No data rows found in Task Master sheet.');
+      ui.alert('No data rows found in Sheets_Master sheet.');
       return;
     }
     
@@ -176,7 +195,7 @@ function showBulkCreationSummary(sheetsCreated, sheetsSkipped, errors) {
 
 /**
  * Processes the creation of a single sheet for a given row
- * @param {number} rowIndex - The row number in the Task Master sheet
+ * @param {number} rowIndex - The row number in the Sheets_Master sheet
  * @param {Array} rowData - The data from the row
  * @return {Object} Result object with success flag and details
  */
@@ -265,13 +284,13 @@ function createSheetCopy(templateName, sharedWith, templateUrl) {
 }
 
 /**
- * Updates the Task Master row with sheet creation results
+ * Updates the Sheets_Master row with sheet creation results
  * @param {number} rowIndex - Row number to update
  * @param {string} sheetUrl - URL of the created sheet
  */
 function updateTaskMasterRow(rowIndex, sheetUrl) {
   try {
-    const masterSheet = getTaskMasterSheet();
+    const masterSheet = getSheetsMasterSheet();
     const currentDate = new Date();
     const formattedDate = Utilities.formatDate(currentDate, Session.getScriptTimeZone(), 'dd-MMM-yy');
     
@@ -293,7 +312,7 @@ function updateTaskMasterRow(rowIndex, sheetUrl) {
  */
 function updateRowStatus(rowIndex, status) {
   try {
-    const masterSheet = getTaskMasterSheet();
+    const masterSheet = getSheetsMasterSheet();
     masterSheet.getRange(rowIndex, 5).setValue(status); // Column E
   } catch (error) {
     console.error('Error updating row status:', error);
@@ -307,7 +326,7 @@ function updateRowStatus(rowIndex, status) {
  */
 function insertImportRangeFormulas(rowIndex, sheetUrl) {
   try {
-    const masterSheet = getTaskMasterSheet();
+    const masterSheet = getSheetsMasterSheet();
     const cellRef = 'D' + rowIndex; // Reference to the URL cell
     
     // Define formulas as per specifications
@@ -337,60 +356,20 @@ function insertImportRangeFormulas(rowIndex, sheetUrl) {
 // =============================================================================
 
 /**
- * Gets the Task Master sheet, creates it if it doesn't exist
- * @return {Sheet} The Task Master sheet
+ * Gets the Sheets_Master sheet, creates it if it doesn't exist
+ * @return {Sheet} The Sheets_Master sheet
  */
-function getTaskMasterSheet() {
+function getSheetsMasterSheet() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = spreadsheet.getSheetByName('Task Master');
+  let sheet = spreadsheet.getSheetByName('Sheets_Master');
   
   if (!sheet) {
-    sheet = spreadsheet.insertSheet('Task Master');
-    initializeTaskMasterSheet(sheet);
+    sheet = spreadsheet.insertSheet('Sheets_Master');
   }
   
   return sheet;
 }
 
-/**
- * Initializes the Task Master sheet with proper headers
- * @param {Sheet} sheet - The sheet to initialize
- */
-function initializeTaskMasterSheet(sheet) {
-  const headers = [
-    'Template Name',    // A
-    'Shared With',      // B  
-    'Email ID',         // C
-    'Sheet URL',        // D
-    'Status',           // E
-    'Date Created',     // F
-    'Total Tasks',      // G
-    'Completed Tasks',  // H
-    'Pending Tasks',    // I
-    'Overdue Tasks',    // J
-    'Not Estimated',    // K
-    'Progress %'        // L
-  ];
-  
-  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-  sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
-  sheet.getRange(1, 1, 1, headers.length).setBackground('#4a90e2');
-  sheet.getRange(1, 1, 1, headers.length).setFontColor('white');
-  
-  // Set column widths
-  sheet.setColumnWidth(1, 150); // Template Name
-  sheet.setColumnWidth(2, 150); // Shared With
-  sheet.setColumnWidth(3, 200); // Email ID
-  sheet.setColumnWidth(4, 300); // Sheet URL
-  sheet.setColumnWidth(5, 150); // Status
-  sheet.setColumnWidth(6, 120); // Date Created
-  sheet.setColumnWidth(7, 100); // Total Tasks
-  sheet.setColumnWidth(8, 120); // Completed Tasks
-  sheet.setColumnWidth(9, 100); // Pending Tasks
-  sheet.setColumnWidth(10, 100); // Overdue Tasks
-  sheet.setColumnWidth(11, 100); // Not Estimated
-  sheet.setColumnWidth(12, 100); // Progress %
-}
 
 /**
  * Gets the template URL from the Template_List sheet
@@ -492,20 +471,32 @@ function openDashboard() {
   try {
     console.log('Opening enhanced dashboard...');
     
-    // Get data from Task Master sheet
+    // Get data from Sheets_Master sheet
     const dashboardData = getDashboardData();
     
     // Create HTML template
     const htmlTemplate = HtmlService.createTemplateFromFile('dashboard');
     htmlTemplate.dashboardData = dashboardData;
     
-    // Create output and open in new window
+    // Create output for new window with visible URL
     const htmlOutput = htmlTemplate.evaluate()
       .setTitle('Task Management Dashboard')
+      .setWidth(1400)
+      .setHeight(900)
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
     
-    // Show in modal dialog (which can be opened in new window by user)
+    // Open in new window - this will open as a separate browser window with URL visible
     SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Task Management Dashboard');
+    
+    // Also provide option to open as web app (user needs to deploy)
+    try {
+      const scriptUrl = ScriptApp.getService().getUrl();
+      if (scriptUrl) {
+        SpreadsheetApp.getUi().alert('Dashboard opened!\\n\\nFor full browser window with URL bar, deploy this script as a Web App and access: ' + scriptUrl);
+      }
+    } catch (e) {
+      // Ignore if web app not deployed
+    }
     
   } catch (error) {
     console.error('Error opening dashboard:', error);
@@ -514,12 +505,12 @@ function openDashboard() {
 }
 
 /**
- * Gets dashboard data directly from Task Master columns G-L
+ * Gets dashboard data directly from Sheets_Master columns G-L
  * @return {Array} Array of dashboard card data
  */
 function getDashboardData() {
   try {
-    const masterSheet = getTaskMasterSheet();
+    const masterSheet = getSheetsMasterSheet();
     const lastRow = masterSheet.getLastRow();
     
     if (lastRow < 2) {
