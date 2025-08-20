@@ -1,0 +1,31 @@
+ID,Task Title,Task Description,Task Type,Planned Date,Actual Date,Status,Priority,Health,Task Dependencies,Confirmed
+1,Empty description test,,Testing,2024-08-15,,Pending,Medium,Good,,Yes
+2,Very long task title that exceeds normal length to test display formatting and wrapping behavior in UI components,Test long titles and descriptions that might break formatting,Testing,2024-08-16,,In Progress,Low,Good,,Yes
+3,Special characters test !@#$%^&*(),"Task with special characters: quotes, commas, semicolons; and other symbols",Testing,2024-08-17,,Completed,Medium,Good,,Yes
+4,Past due date test,Task with date in the past to test overdue functionality,Testing,2024-07-01,,Pending,High,Poor,,No
+5,Future date test,Task with date far in the future,Testing,2025-12-31,,Pending,Low,Good,,Yes
+6,Today's date test,Task planned for today,Testing,2024-08-20,,In Progress,Medium,Good,,Yes
+7,Weekend date test,Task planned for weekend,Testing,2024-08-24,,Pending,Medium,Good,,Yes
+8,Holiday date test,Task planned for a holiday,Testing,2024-12-25,,Pending,Low,Good,,Yes
+9,Leap year date test,Task for leap year date,Testing,2024-02-29,,Completed,Medium,Good,,Yes
+10,No planned date,Task without planned date to test null handling,Testing,,,Pending,Medium,Good,,Yes
+11,Multiple dependencies,Task with multiple dependencies,Testing,2024-08-25,,Pending,High,Good,"1,2,3",Yes
+12,Circular dependency A,First task in circular dependency,Testing,2024-08-26,,Pending,Medium,Attention Required,13,Yes
+13,Circular dependency B,Second task in circular dependency,Testing,2024-08-27,,Pending,Medium,Attention Required,12,Yes
+14,Non-existent dependency,Task referencing non-existent dependency,Testing,2024-08-28,,Pending,Medium,Good,999,Yes
+15,Same day completion,Task completed on same day as planned,Testing,2024-08-20,2024-08-20,Completed,High,Good,,Yes
+16,Early completion,Task completed before planned date,Testing,2024-08-25,2024-08-22,Completed,Medium,Good,,Yes
+17,Late completion,Task completed after planned date,Testing,2024-08-15,2024-08-18,Completed,Medium,Attention Required,,Yes
+18,Unicode characters test,Task with émojis 🚀 and ünicøde çhåraçters,Testing,2024-08-21,,Pending,Low,Good,,Yes
+19,Maximum priority,Task with highest priority,Testing,2024-08-22,,Pending,Critical,Poor,,No
+20,Minimum priority,Task with lowest priority,Testing,2024-08-23,,Pending,Low,Good,,Yes
+21,Status variations test - Done,Task with alternative completion status,Testing,2024-08-19,2024-08-19,Done,Medium,Good,,Yes
+22,Status variations test - Closed,Task with closed status,Testing,2024-08-18,2024-08-18,Closed,Medium,Good,,Yes
+23,Status variations test - Complete,Task with complete status,Testing,2024-08-17,2024-08-17,Complete,Medium,Good,,Yes
+24,Health status - Excellent,Task with excellent health,Testing,2024-08-30,,Pending,Medium,Excellent,,Yes
+25,Health status - Poor,Task with poor health status,Testing,2024-08-31,,In Progress,High,Poor,,Yes
+26,Unconfirmed task,Task that hasn't been confirmed yet,Testing,2024-09-01,,Pending,Medium,Good,,No
+27,Empty priority test,Task with no priority set,Testing,2024-09-02,,Pending,,Good,,Yes
+28,Empty health test,Task with no health status,Testing,2024-09-03,,Pending,Medium,,,Yes
+29,All empty optional fields,Task with only required fields filled,Testing,2024-09-04,,Pending,,,,,
+30,Boundary date test,Task for year boundary,Testing,2024-12-31,,Pending,High,Good,,Yes

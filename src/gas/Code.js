@@ -277,9 +277,9 @@ function insertImportRangeFormulas(rowIndex, sheetUrl) {
     
     // Define formulas as per specifications
     const formulas = {
-      G: `=IFERROR(COUNTA(IMPORTRANGE(${cellRef},"'Tasks'!B2:B")),0)`,
+      G: `=IFERROR(COUNTA(IMPORTRANGE(${cellRef},"'Tasks'!B2:B"))-1,0)`,
       H: `=IFERROR(SUM(COUNTIF(IMPORTRANGE(${cellRef},"'Tasks'!G2:G"),{"Completed","Done","Closed","Complete"})),0)`,
-      I: `=IF(G${rowIndex}=0,0, G${rowIndex}-H${rowIndex}-J${rowIndex})`,
+      I: `=IF(G${rowIndex}=0,0, G${rowIndex}-H${rowIndex})`,
       J: `=IFERROR(COUNTIFS(IMPORTRANGE(${cellRef},"'Tasks'!E2:E"),"<"&TODAY(),IMPORTRANGE(${cellRef},"'Tasks'!G2:G"),"<>Completed"),0)`,
       K: `=IFERROR(SUM(COUNTIF(IMPORTRANGE(${cellRef},"'Tasks'!K2:K"),{"No"})),0)`,
       L: `=IF(G${rowIndex}=0,0,ROUND(H${rowIndex}/G${rowIndex}*100,0))`

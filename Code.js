@@ -158,7 +158,7 @@ function recordTemplateInMaster(templateType, sheetUrl, sheetId) {
     const sheetIdForFormula = sheetId;
     
     // These formulas will count data from the linked spreadsheet
-    masterSheet.getRange(`G${nextRow}`).setFormula(`=IF(ISBLANK(D${nextRow}),"",COUNTA(IMPORTRANGE(D${nextRow},"A:A"))-1)`);
+    masterSheet.getRange(`G${nextRow}`).setFormula(`=IF(ISBLANK(D${nextRow}),"",COUNTA(IMPORTRANGE(D${nextRow},"B2:B")))`);
     masterSheet.getRange(`H${nextRow}`).setFormula(`=IF(ISBLANK(D${nextRow}),"",COUNTIF(IMPORTRANGE(D${nextRow},"G:G"),"Completed"))`);
     masterSheet.getRange(`I${nextRow}`).setFormula(`=IF(ISBLANK(D${nextRow}),"",COUNTIFS(IMPORTRANGE(D${nextRow},"G:G"),"Pending")+COUNTIFS(IMPORTRANGE(D${nextRow},"G:G"),"In Progress"))`);
     masterSheet.getRange(`J${nextRow}`).setFormula(`=IF(ISBLANK(D${nextRow}),"",COUNTIF(IMPORTRANGE(D${nextRow},"I:I"),"Delayed"))`);
