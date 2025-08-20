@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Task & Idea Manager Dashboard</title>
+    <title>Task Management Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * {
@@ -20,7 +20,7 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
         }
 
@@ -28,6 +28,10 @@
             text-align: center;
             color: white;
             margin-bottom: 30px;
+            background: rgba(0,0,0,0.1);
+            padding: 20px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
         }
 
         .header h1 {
@@ -41,204 +45,148 @@
             opacity: 0.9;
         }
 
-        .summary-cards {
+        .dashboard-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .summary-card {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        .summary-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
-        }
-
-        .summary-card h3 {
-            color: #333;
-            margin-bottom: 10px;
-            font-size: 1.1rem;
-        }
-
-        .summary-card .number {
-            font-size: 2.5rem;
-            font-weight: bold;
-            color: #667eea;
-            margin-bottom: 5px;
-        }
-
-        .templates-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
             gap: 25px;
             margin-bottom: 30px;
         }
 
-        .template-card {
+        .dashboard-card {
             background: white;
             border-radius: 15px;
             padding: 25px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
             transition: transform 0.3s ease, box-shadow 0.3s ease;
-            border-left: 5px solid #667eea;
+            border-left: 5px solid #4a90e2;
         }
 
-        .template-card:hover {
+        .dashboard-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 15px 40px rgba(0,0,0,0.3);
         }
 
-        .template-card.idea {
-            border-left-color: #4285f4;
-        }
-
-        .template-card.task {
-            border-left-color: #34a853;
-        }
-
-        .template-header {
+        .card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
         }
 
-        .template-title {
-            font-size: 1.3rem;
+        .card-title {
+            font-size: 1.4rem;
             font-weight: bold;
             color: #333;
+            flex: 1;
         }
 
-        .template-type {
-            padding: 5px 12px;
+        .sheet-url-link {
+            background: #4a90e2;
+            color: white;
+            padding: 8px 15px;
             border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: bold;
-            text-transform: uppercase;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: background 0.3s ease;
         }
 
-        .template-type.idea {
-            background: #e3f2fd;
-            color: #1976d2;
+        .sheet-url-link:hover {
+            background: #357abd;
+            text-decoration: none;
+            color: white;
         }
 
-        .template-type.task {
-            background: #e8f5e8;
-            color: #388e3c;
-        }
-
-        .template-info {
-            margin-bottom: 15px;
-        }
-
-        .template-info p {
-            margin-bottom: 5px;
-            color: #666;
-        }
-
-        .template-stats {
+        .metrics-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            margin-bottom: 15px;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 25px;
         }
 
-        .stat-item {
+        .metric-item {
             text-align: center;
-            padding: 10px;
+            padding: 15px;
             background: #f8f9fa;
-            border-radius: 8px;
+            border-radius: 10px;
+            border: 1px solid #e9ecef;
         }
 
-        .stat-number {
-            font-size: 1.5rem;
+        .metric-number {
+            font-size: 1.8rem;
             font-weight: bold;
-            color: #667eea;
+            color: #4a90e2;
+            margin-bottom: 5px;
         }
 
-        .stat-label {
-            font-size: 0.8rem;
+        .metric-label {
+            font-size: 0.85rem;
             color: #666;
             text-transform: uppercase;
+            font-weight: 500;
         }
 
-        .progress-container {
-            margin-bottom: 15px;
+        .progress-section {
+            margin-bottom: 25px;
+        }
+
+        .progress-label {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
         }
 
         .progress-bar {
             width: 100%;
-            height: 8px;
+            height: 12px;
             background: #e0e0e0;
-            border-radius: 4px;
+            border-radius: 6px;
             overflow: hidden;
+            margin-bottom: 8px;
         }
 
         .progress-fill {
             height: 100%;
-            background: linear-gradient(90deg, #667eea, #764ba2);
+            background: linear-gradient(90deg, #4a90e2, #667eea);
             transition: width 0.3s ease;
+            border-radius: 6px;
         }
 
         .progress-text {
             text-align: center;
-            margin-top: 5px;
             font-weight: bold;
-            color: #333;
+            color: #4a90e2;
+            font-size: 1.1rem;
         }
 
-        .template-link {
-            display: inline-block;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 25px;
-            text-decoration: none;
-            font-weight: bold;
-            transition: transform 0.3s ease;
-            text-align: center;
-            width: 100%;
-        }
-
-        .template-link:hover {
-            transform: scale(1.05);
-            text-decoration: none;
-            color: white;
-        }
-
-        .charts-section {
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            margin-bottom: 30px;
-        }
-
-        .charts-grid {
+        .charts-container {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 30px;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
         }
 
-        .chart-container {
+        .chart-wrapper {
             position: relative;
-            height: 300px;
+            height: 200px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
         }
 
         .chart-title {
             text-align: center;
-            margin-bottom: 20px;
-            font-size: 1.2rem;
             font-weight: bold;
             color: #333;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+        }
+
+        .chart-canvas {
+            position: relative;
+            height: 150px;
         }
 
         .no-data {
@@ -246,39 +194,69 @@
             color: #666;
             font-style: italic;
             padding: 50px;
-            background: #f8f9fa;
+            background: rgba(255,255,255,0.9);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        .summary-stats {
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            backdrop-filter: blur(10px);
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+        }
+
+        .summary-item {
+            text-align: center;
+            padding: 15px;
+            background: linear-gradient(135deg, #4a90e2, #667eea);
+            color: white;
             border-radius: 10px;
         }
 
+        .summary-number {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .summary-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
         @media (max-width: 768px) {
-            .header h1 {
-                font-size: 2rem;
+            .dashboard-grid {
+                grid-template-columns: 1fr;
             }
             
-            .summary-cards {
+            .metrics-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
             
-            .templates-grid {
+            .charts-container {
                 grid-template-columns: 1fr;
             }
             
-            .template-stats {
-                grid-template-columns: repeat(4, 1fr);
-            }
-            
-            .charts-grid {
-                grid-template-columns: 1fr;
+            .summary-grid {
+                grid-template-columns: repeat(2, 1fr);
             }
         }
 
         @media (max-width: 480px) {
-            .summary-cards {
+            .metrics-grid {
                 grid-template-columns: 1fr;
             }
             
-            .template-stats {
-                grid-template-columns: repeat(2, 1fr);
+            .summary-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -286,293 +264,203 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>📊 Task & Idea Manager Dashboard</h1>
-            <p>Monitor your templates and track progress</p>
+            <h1>📊 Task Management Dashboard</h1>
+            <p id="headerInfo">Loading dashboard data...</p>
         </div>
 
-        <div class="summary-cards" id="summaryCards">
-            <!-- Summary cards will be populated by JavaScript -->
+        <div class="summary-stats" id="summaryStats">
+            <!-- Summary statistics will be populated by JavaScript -->
         </div>
 
-        <div class="templates-grid" id="templatesGrid">
-            <!-- Template cards will be populated by JavaScript -->
-        </div>
-
-        <div class="charts-section">
-            <div class="charts-grid">
-                <div>
-                    <div class="chart-title">Progress Overview</div>
-                    <div class="chart-container">
-                        <canvas id="progressChart"></canvas>
-                    </div>
-                </div>
-                <div>
-                    <div class="chart-title">Task Status Distribution</div>
-                    <div class="chart-container">
-                        <canvas id="statusChart"></canvas>
-                    </div>
-                </div>
-            </div>
+        <div class="dashboard-grid" id="dashboardGrid">
+            <!-- Dashboard cards will be populated by JavaScript -->
         </div>
     </div>
 
     <script>
-        console.log('=== HTML SCRIPT STARTING ===');
-        
-        // Get data from server-side template
-        console.log('Step A: About to parse template data');
+        console.log('=== ENHANCED DASHBOARD STARTING ===');
         
         var dashboardData;
+        
         try {
-            // The template injects the data directly as JavaScript object
+            // Get data from server-side template
             dashboardData = <?= JSON.stringify(dashboardData) ?>;
-            console.log('Step B: Raw data received');
-            console.log('Step C: Data type:', typeof dashboardData);
-            console.log('Step D: Data is array:', Array.isArray(dashboardData));
+            console.log('Dashboard data received:', dashboardData);
             
-            // If it's a string, parse it
             if (typeof dashboardData === 'string') {
-                console.log('Step E: Data is string, parsing JSON...');
                 dashboardData = JSON.parse(dashboardData);
-                console.log('Step F: Parsed data type:', typeof dashboardData);
-                console.log('Step G: Parsed data is array:', Array.isArray(dashboardData));
             }
             
-            console.log('Step H: Final data length:', dashboardData ? dashboardData.length : 'null/undefined');
-            console.log('Step I: Final data:', dashboardData);
-            
         } catch (e) {
-            console.error('ERROR: Failed to parse template data:', e);
+            console.error('Error parsing dashboard data:', e);
             dashboardData = [];
         }
         
-        console.log('=== INITIALIZING DASHBOARD ===');
-        
         // Initialize dashboard when page loads
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('DOM loaded, starting dashboard initialization');
+            console.log('DOM loaded, initializing enhanced dashboard');
             
             if (!dashboardData || dashboardData.length === 0) {
-                console.log('No data found, showing empty message');
-                console.log('Data check - dashboardData:', dashboardData);
                 showNoDataMessage();
                 return;
             }
             
-            console.log(`Rendering ${dashboardData.length} cards`);
-            console.log('Sample card data:', dashboardData[0]);
-            
             try {
-                console.log('Creating summary cards...');
-                createSummaryCards(dashboardData);
-                console.log('Summary cards created');
-                
-                console.log('Creating template cards...');
-                createTemplateCards(dashboardData);
-                console.log('Template cards created');
-                
-                console.log('Creating charts...');
-                createCharts(dashboardData);
-                console.log('Charts created');
-                
-                // Update header info
-                document.querySelector('.header p').textContent = 
-                    `${dashboardData.length} templates • Updated: ${new Date().toLocaleString()}`;
-                console.log('Header updated');
+                createSummaryStats(dashboardData);
+                createDashboardCards(dashboardData);
+                updateHeaderInfo(dashboardData.length);
                 
             } catch (error) {
-                console.error('Error during rendering:', error);
-                document.getElementById('templatesGrid').innerHTML = 
-                    '<div class="no-data">Rendering error: ' + error.message + '</div>';
+                console.error('Error rendering dashboard:', error);
+                showErrorMessage(error.message);
             }
         });
-        
-        function initializeDashboard() {
-            // This function is now handled by DOMContentLoaded
-        }
 
         function showNoDataMessage() {
-            document.getElementById('templatesGrid').innerHTML = 
-                '<div class="no-data">No templates found. Create your first Idea or Task template to get started!</div>';
+            document.getElementById('dashboardGrid').innerHTML = 
+                '<div class="no-data">No dashboard data found. Create some sheets first!</div>';
+            document.getElementById('headerInfo').textContent = 'No data available';
         }
 
-        function createSummaryCards(dashboardData) {
-            console.log('=== CREATE SUMMARY CARDS ===');
-            console.log('Input data:', dashboardData);
-            
-            const totalTemplates = dashboardData.length;
-            const totalTasks = dashboardData.reduce((sum, item) => sum + (item.total || 0), 0);
-            const completedTasks = dashboardData.reduce((sum, item) => sum + (item.completed || 0), 0);
-            const overdueTasks = dashboardData.reduce((sum, item) => sum + (item.overdue || 0), 0);
+        function showErrorMessage(error) {
+            document.getElementById('dashboardGrid').innerHTML = 
+                '<div class="no-data">Error loading dashboard: ' + error + '</div>';
+        }
 
-            console.log('Calculated totals:', {totalTemplates, totalTasks, completedTasks, overdueTasks});
+        function updateHeaderInfo(count) {
+            document.getElementById('headerInfo').textContent = 
+                count + ' active sheets • Updated: ' + new Date().toLocaleString();
+        }
 
-            const summaryCards = [
-                { title: 'Total Templates', number: totalTemplates, icon: '📋' },
-                { title: 'Total Tasks', number: totalTasks, icon: '📝' },
-                { title: 'Completed Tasks', number: completedTasks, icon: '✅' },
-                { title: 'Overdue Tasks', number: overdueTasks, icon: '⚠️' }
-            ];
+        function createSummaryStats(data) {
+            const totalSheets = data.length;
+            const totalTasks = data.reduce((sum, item) => sum + (item.totalTasks || 0), 0);
+            const totalCompleted = data.reduce((sum, item) => sum + (item.completedTasks || 0), 0);
+            const totalOverdue = data.reduce((sum, item) => sum + (item.overdueTasks || 0), 0);
+            const totalNotEstimated = data.reduce((sum, item) => sum + (item.notEstimated || 0), 0);
 
-            const summaryHTML = summaryCards.map(card => `
-                <div class="summary-card">
-                    <h3>${card.icon} ${card.title}</h3>
-                    <div class="number">${card.number}</div>
+            const summaryHTML = `
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <div class="summary-number">${totalSheets}</div>
+                        <div class="summary-label">Active Sheets</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-number">${totalTasks}</div>
+                        <div class="summary-label">Total Tasks</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-number">${totalCompleted}</div>
+                        <div class="summary-label">Completed</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-number">${totalOverdue}</div>
+                        <div class="summary-label">Overdue</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-number">${totalNotEstimated}</div>
+                        <div class="summary-label">Not Estimated</div>
+                    </div>
                 </div>
-            `).join('');
+            `;
 
-            console.log('Generated HTML length:', summaryHTML.length);
-            console.log('HTML preview:', summaryHTML.substring(0, 200));
-
-            const summaryElement = document.getElementById('summaryCards');
-            console.log('Summary element found:', !!summaryElement);
-            
-            if (summaryElement) {
-                summaryElement.innerHTML = summaryHTML;
-                console.log('Summary cards HTML inserted');
-            } else {
-                console.error('Could not find summaryCards element');
-            }
+            document.getElementById('summaryStats').innerHTML = summaryHTML;
         }
 
-        function createTemplateCards(dashboardData) {
-            console.log('=== CREATE TEMPLATE CARDS ===');
-            console.log('Input data for template cards:', dashboardData);
-            
-            const templatesHTML = dashboardData.map((template, index) => {
-                console.log(`Processing template ${index}:`, template);
-                
-                const isIdea = template.template.includes('Idea');
-                const typeClass = isIdea ? 'idea' : 'task';
-                const progressPercent = Math.round((template.progress || 0) * 100);
-                
-                console.log(`Template ${index} - isIdea: ${isIdea}, typeClass: ${typeClass}, progress: ${progressPercent}%`);
+        function createDashboardCards(data) {
+            const cardsHTML = data.map((card, index) => {
+                const progressPercent = Math.max(0, Math.min(100, card.progressPercent || 0));
+                const incompleteTasks = (card.totalTasks || 0) - (card.completedTasks || 0);
                 
                 return `
-                    <div class="template-card ${typeClass}">
-                        <div class="template-header">
-                            <div class="template-title">${template.cardTitle}</div>
-                            <div class="template-type ${typeClass}">${isIdea ? 'Idea' : 'Task'}</div>
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <div class="card-title">${card.cardTitle}</div>
+                            <a href="${card.sheetUrl}" target="_blank" class="sheet-url-link">
+                                Open Sheet
+                            </a>
                         </div>
                         
-                        <div class="template-info">
-                            <p><strong>Owner:</strong> ${template.sharedWith || 'Unknown'}</p>
-                            <p><strong>Created:</strong> ${formatDate(template.createdAt)}</p>
-                            <p><strong>Status:</strong> ${template.status || 'Active'}</p>
-                        </div>
-                        
-                        <div class="template-stats">
-                            <div class="stat-item">
-                                <div class="stat-number">${template.total || 0}</div>
-                                <div class="stat-label">${template.totalLabel || 'Total'}</div>
+                        <div class="metrics-grid">
+                            <div class="metric-item">
+                                <div class="metric-number">${card.totalTasks || 0}</div>
+                                <div class="metric-label">Total Tasks</div>
                             </div>
-                            <div class="stat-item">
-                                <div class="stat-number">${template.completed || 0}</div>
-                                <div class="stat-label">${template.completedLabel || 'Completed'}</div>
+                            <div class="metric-item">
+                                <div class="metric-number">${card.completedTasks || 0}</div>
+                                <div class="metric-label">Completed</div>
                             </div>
-                            <div class="stat-item">
-                                <div class="stat-number">${template.pending || 0}</div>
-                                <div class="stat-label">${template.pendingLabel || 'Pending'}</div>
+                            <div class="metric-item">
+                                <div class="metric-number">${card.pendingTasks || 0}</div>
+                                <div class="metric-label">Pending</div>
                             </div>
-                            <div class="stat-item">
-                                <div class="stat-number">${template.overdue || 0}</div>
-                                <div class="stat-label">${template.overdueLabel || 'Overdue'}</div>
+                            <div class="metric-item">
+                                <div class="metric-number">${card.overdueTasks || 0}</div>
+                                <div class="metric-label">Overdue</div>
+                            </div>
+                            <div class="metric-item">
+                                <div class="metric-number">${card.notEstimated || 0}</div>
+                                <div class="metric-label">Not Estimated</div>
                             </div>
                         </div>
                         
-                        <div class="progress-container">
+                        <div class="progress-section">
+                            <div class="progress-label">Overall Progress</div>
                             <div class="progress-bar">
                                 <div class="progress-fill" style="width: ${progressPercent}%"></div>
                             </div>
-                            <div class="progress-text">${progressPercent}% Complete</div>
+                            <div class="progress-text">${progressPercent}%</div>
                         </div>
                         
-                        <a href="${template.url}" target="_blank" class="template-link">
-                            Open Template
-                        </a>
+                        <div class="charts-container">
+                            <div class="chart-wrapper">
+                                <div class="chart-title">% Tasks Completed</div>
+                                <div class="chart-canvas">
+                                    <canvas id="completionChart${index}" width="150" height="150"></canvas>
+                                </div>
+                            </div>
+                            <div class="chart-wrapper">
+                                <div class="chart-title">% Not Estimated vs Incomplete</div>
+                                <div class="chart-canvas">
+                                    <canvas id="estimationChart${index}" width="150" height="150"></canvas>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 `;
             }).join('');
 
-            console.log('Templates HTML generated, length:', templatesHTML.length);
-            console.log('Templates HTML preview:', templatesHTML.substring(0, 300));
+            document.getElementById('dashboardGrid').innerHTML = cardsHTML;
 
-            const templatesElement = document.getElementById('templatesGrid');
-            console.log('Templates grid element found:', !!templatesElement);
-            
-            if (templatesElement) {
-                templatesElement.innerHTML = templatesHTML;
-                console.log('Template cards HTML inserted');
-            } else {
-                console.error('Could not find templatesGrid element');
+            // Create charts after cards are rendered
+            setTimeout(() => {
+                data.forEach((card, index) => {
+                    createCompletionChart(index, card);
+                    createEstimationChart(index, card);
+                });
+            }, 100);
+        }
+
+        function createCompletionChart(index, cardData) {
+            const ctx = document.getElementById(`completionChart${index}`);
+            if (!ctx) return;
+
+            const totalTasks = cardData.totalTasks || 0;
+            const completedTasks = cardData.completedTasks || 0;
+            const incompleteTasks = totalTasks - completedTasks;
+
+            if (totalTasks === 0) {
+                ctx.getContext('2d').fillText('No Tasks', 50, 75);
+                return;
             }
-        }
 
-        function createCharts(dashboardData) {
-            createProgressChart(dashboardData);
-            createStatusChart(dashboardData);
-        }
-
-        function createProgressChart(dashboardData) {
-            const ctx = document.getElementById('progressChart').getContext('2d');
-            
-            const labels = dashboardData.map(item => item.cardTitle);
-            const progressData = dashboardData.map(item => Math.round((item.progress || 0) * 100));
-            
-            new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Progress %',
-                        data: progressData,
-                        backgroundColor: 'rgba(102, 126, 234, 0.6)',
-                        borderColor: 'rgba(102, 126, 234, 1)',
-                        borderWidth: 2,
-                        borderRadius: 5
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 100,
-                            ticks: {
-                                callback: function(value) {
-                                    return value + '%';
-                                }
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    }
-                }
-            });
-        }
-
-        function createStatusChart(dashboardData) {
-            const ctx = document.getElementById('statusChart').getContext('2d');
-            
-            const totalCompleted = dashboardData.reduce((sum, item) => sum + (item.completed || 0), 0);
-            const totalPending = dashboardData.reduce((sum, item) => sum + (item.pending || 0), 0);
-            const totalOverdue = dashboardData.reduce((sum, item) => sum + (item.overdue || 0), 0);
-            
-            new Chart(ctx, {
+            new Chart(ctx.getContext('2d'), {
                 type: 'doughnut',
                 data: {
-                    labels: ['Completed', 'Pending', 'Overdue'],
+                    labels: ['Completed', 'Incomplete'],
                     datasets: [{
-                        data: [totalCompleted, totalPending, totalOverdue],
-                        backgroundColor: [
-                            '#4CAF50',
-                            '#FF9800',
-                            '#F44336'
-                        ],
+                        data: [completedTasks, incompleteTasks],
+                        backgroundColor: ['#4CAF50', '#e0e0e0'],
                         borderWidth: 0
                     }]
                 },
@@ -581,26 +469,57 @@
                     maintainAspectRatio: false,
                     plugins: {
                         legend: {
-                            position: 'bottom'
+                            position: 'bottom',
+                            labels: {
+                                font: { size: 10 }
+                            }
                         }
                     }
                 }
             });
         }
 
-        function formatDate(dateValue) {
-            if (!dateValue) return 'N/A';
-            
-            const date = new Date(dateValue);
-            return date.toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric'
+        function createEstimationChart(index, cardData) {
+            const ctx = document.getElementById(`estimationChart${index}`);
+            if (!ctx) return;
+
+            const totalTasks = cardData.totalTasks || 0;
+            const completedTasks = cardData.completedTasks || 0;
+            const incompleteTasks = totalTasks - completedTasks;
+            const notEstimated = cardData.notEstimated || 0;
+            const estimatedIncomplete = Math.max(0, incompleteTasks - notEstimated);
+
+            if (incompleteTasks === 0) {
+                ctx.getContext('2d').fillText('All Complete', 40, 75);
+                return;
+            }
+
+            new Chart(ctx.getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Estimated', 'Not Estimated'],
+                    datasets: [{
+                        data: [estimatedIncomplete, notEstimated],
+                        backgroundColor: ['#2196F3', '#FF9800'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                font: { size: 10 }
+                            }
+                        }
+                    }
+                }
             });
         }
 
-        // Initialize dashboard when page loads
-        document.addEventListener('DOMContentLoaded', initializeDashboard);
+        console.log('=== ENHANCED DASHBOARD LOADED ===');
     </script>
 </body>
 </html>

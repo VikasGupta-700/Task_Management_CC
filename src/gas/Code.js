@@ -1,455 +1,581 @@
+/**
+ * Enhanced Task Management System
+ * Features:
+ * - Create Single Sheet from Task Master
+ * - Bulk Create Pending Sheets 
+ * - Enhanced Dashboard with Charts
+ * - Comprehensive Error Handling
+ */
+
+// =============================================================================
+// MENU SYSTEM
+// =============================================================================
+
+/**
+ * Creates the main menu when spreadsheet opens
+ */
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
-  ui.createMenu('Task & Idea Manager')
-    .addItem('Create Idea Template', 'createIdeaTemplate')
-    .addItem('Create Task Template', 'createTaskTemplate')
+  ui.createMenu('Task Management System')
+    .addItem('Create Single Sheet', 'createSingleSheet')
+    .addItem('Bulk Create Pending Sheets', 'bulkCreatePendingSheets')
+    .addSeparator()
     .addItem('Open Dashboard', 'openDashboard')
     .addToUi();
 }
 
-function createIdeaTemplate() {
+// =============================================================================
+// SINGLE SHEET CREATION
+// =============================================================================
+
+/**
+ * Creates a single sheet based on the selected row in Task Master
+ * Uses the template URL from the Template_List sheet
+ */
+function createSingleSheet() {
   try {
-    const newSpreadsheet = SpreadsheetApp.create('Idea Template - ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm'));
-    const sheet = newSpreadsheet.getActiveSheet();
-    sheet.setName('Ideas');
+    const ui = SpreadsheetApp.getUi();
     
-    // Set up headers
-    const headers = [
-      'Sr. No', 'Idea Title', 'Idea Description', 'Idea Date', 
-      'Planned Implementation Date', 'Actual Implementation Date', 
-      'Status', 'Remarks / Issues', 'On Time / Delayed', 
-      'Delay Days', 'Estimated?', 'Days Since Allocated'
-    ];
+    // Get the active range to determine which row to process
+    const activeRange = SpreadsheetApp.getActiveRange();
+    const activeRow = activeRange.getRow();
     
-    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-    sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
-    sheet.getRange(1, 1, 1, headers.length).setBackground('#4285f4');
-    sheet.getRange(1, 1, 1, headers.length).setFontColor('white');
+    // Ensure we're working with a data row (not header)
+    if (activeRow < 2) {
+      ui.alert('Please select a data row (row 2 or below) in the Task Master sheet.');
+      return;
+    }
     
-    // Set column widths
-    sheet.setColumnWidth(1, 60);   // Sr. No
-    sheet.setColumnWidth(2, 150);  // Idea Title
-    sheet.setColumnWidth(3, 200);  // Idea Description
-    sheet.setColumnWidth(4, 100);  // Idea Date
-    sheet.setColumnWidth(5, 150);  // Planned Implementation Date
-    sheet.setColumnWidth(6, 150);  // Actual Implementation Date
-    sheet.setColumnWidth(7, 100);  // Status
-    sheet.setColumnWidth(8, 150);  // Remarks / Issues
-    sheet.setColumnWidth(9, 120);  // On Time / Delayed
-    sheet.setColumnWidth(10, 100); // Delay Days
-    sheet.setColumnWidth(11, 100); // Estimated?
-    sheet.setColumnWidth(12, 150); // Days Since Allocated
+    const masterSheet = getTaskMasterSheet();
+    const rowData = masterSheet.getRange(activeRow, 1, 1, 12).getValues()[0];
     
-    // Add sample row with formulas
-    const sampleData = [
-      [1, 'Sample Idea', 'This is a sample idea description', new Date(), '', '', 'Pending', '', '', '', '', '']
-    ];
-    sheet.getRange(2, 1, 1, 8).setValues(sampleData);
+    // Check if sheet already exists (Column D has URL)
+    if (rowData[3]) { // Column D
+      ui.alert('Sheet already exists for this row!\\nURL: ' + rowData[3]);
+      return;
+    }
     
-    // Set formulas for calculated columns (I, J, K, L)
-    sheet.getRange('I2').setFormula('=IF(AND(E2<>"",F2<>""),IF(F2<=E2,"On Time","Delayed"),IF(AND(E2<>"",TODAY()>E2),"Delayed","TBD"))');
-    sheet.getRange('J2').setFormula('=IF(AND(E2<>"",F2<>""),IF(F2>E2,F2-E2,0),IF(AND(E2<>"",TODAY()>E2),TODAY()-E2,0))');
-    sheet.getRange('K2').setFormula('=IF(E2<>"","Yes","No")');
-    sheet.getRange('L2').setFormula('=IF(D2<>"",TODAY()-D2,"")');
+    // Check if template name exists (Column A)
+    if (!rowData[0]) {
+      ui.alert('No template name found in Column A for this row.');
+      return;
+    }
     
-    // Protect the formula columns
-    const formulaRange = sheet.getRange('I:L');
-    const protection = formulaRange.protect().setDescription('Formula columns - do not edit');
-    protection.setWarningOnly(true);
+    const result = processSheetCreation(activeRow, rowData);
     
-    // Record in Master sheet
-    recordTemplateInMaster('Idea Template', newSpreadsheet.getUrl(), newSpreadsheet.getId());
-    
-    SpreadsheetApp.getUi().alert('Idea Template created successfully!\n\nURL: ' + newSpreadsheet.getUrl());
+    if (result.success) {
+      ui.alert('Sheet Created Successfully!\\n\\n' +
+               'Name: ' + result.sheetName + '\\n' +
+               'URL: ' + result.sheetUrl);
+    } else {
+      ui.alert('Error: ' + result.error);
+    }
     
   } catch (error) {
-    SpreadsheetApp.getUi().alert('Error creating Idea Template: ' + error.toString());
+    console.error('Error in createSingleSheet:', error);
+    SpreadsheetApp.getUi().alert('Unexpected error: ' + error.toString());
   }
 }
 
-function createTaskTemplate() {
-  try {
-    const newSpreadsheet = SpreadsheetApp.create('Task Template - ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm'));
-    const sheet = newSpreadsheet.getActiveSheet();
-    sheet.setName('Tasks');
-    
-    // Set up headers
-    const headers = [
-      'Sr. No', 'Task Title', 'Task Description', 'Allocated Date', 
-      'Planned Completion Date', 'Actual Completion Date', 
-      'Status', 'Remarks / Issues', 'On Time / Delayed', 
-      'Delay Days', 'Estimated?', 'Days Since Allocated'
-    ];
-    
-    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-    sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
-    sheet.getRange(1, 1, 1, headers.length).setBackground('#34a853');
-    sheet.getRange(1, 1, 1, headers.length).setFontColor('white');
-    
-    // Set column widths
-    sheet.setColumnWidth(1, 60);   // Sr. No
-    sheet.setColumnWidth(2, 150);  // Task Title
-    sheet.setColumnWidth(3, 200);  // Task Description
-    sheet.setColumnWidth(4, 100);  // Allocated Date
-    sheet.setColumnWidth(5, 150);  // Planned Completion Date
-    sheet.setColumnWidth(6, 150);  // Actual Completion Date
-    sheet.setColumnWidth(7, 100);  // Status
-    sheet.setColumnWidth(8, 150);  // Remarks / Issues
-    sheet.setColumnWidth(9, 120);  // On Time / Delayed
-    sheet.setColumnWidth(10, 100); // Delay Days
-    sheet.setColumnWidth(11, 100); // Estimated?
-    sheet.setColumnWidth(12, 150); // Days Since Allocated
-    
-    // Add sample row with formulas
-    const sampleData = [
-      [1, 'Sample Task', 'This is a sample task description', new Date(), '', '', 'Pending', '', '', '', '', '']
-    ];
-    sheet.getRange(2, 1, 1, 8).setValues(sampleData);
-    
-    // Set formulas for calculated columns (I, J, K, L)
-    sheet.getRange('I2').setFormula('=IF(AND(E2<>"",F2<>""),IF(F2<=E2,"On Time","Delayed"),IF(AND(E2<>"",TODAY()>E2),"Delayed","TBD"))');
-    sheet.getRange('J2').setFormula('=IF(AND(E2<>"",F2<>""),IF(F2>E2,F2-E2,0),IF(AND(E2<>"",TODAY()>E2),TODAY()-E2,0))');
-    sheet.getRange('K2').setFormula('=IF(E2<>"","Yes","No")');
-    sheet.getRange('L2').setFormula('=IF(D2<>"",TODAY()-D2,"")');
-    
-    // Protect the formula columns
-    const formulaRange = sheet.getRange('I:L');
-    const protection = formulaRange.protect().setDescription('Formula columns - do not edit');
-    protection.setWarningOnly(true);
-    
-    // Record in Master sheet
-    recordTemplateInMaster('Task Template', newSpreadsheet.getUrl(), newSpreadsheet.getId());
-    
-    SpreadsheetApp.getUi().alert('Task Template created successfully!\n\nURL: ' + newSpreadsheet.getUrl());
-    
-  } catch (error) {
-    SpreadsheetApp.getUi().alert('Error creating Task Template: ' + error.toString());
-  }
-}
+// =============================================================================
+// BULK SHEET CREATION
+// =============================================================================
 
-function recordTemplateInMaster(templateType, sheetUrl, sheetId) {
+/**
+ * Creates sheets for all rows in Task Master where Column E is empty
+ * Shows summary popup upon completion
+ */
+function bulkCreatePendingSheets() {
   try {
-    const masterSheet = getMasterSheet();
-    const currentUser = Session.getActiveUser().getEmail();
+    const ui = SpreadsheetApp.getUi();
     
-    // Find the next empty row
+    // Confirm before proceeding
+    const response = ui.alert(
+      'Bulk Create Confirmation',
+      'This will create sheets for all rows where status (Column E) is empty.\\n\\nProceed?',
+      ui.ButtonSet.YES_NO
+    );
+    
+    if (response !== ui.Button.YES) {
+      return;
+    }
+    
+    const masterSheet = getTaskMasterSheet();
     const lastRow = masterSheet.getLastRow();
-    const nextRow = lastRow + 1;
     
-    // Prepare data for Master sheet
-    const masterData = [
-      templateType,                    // A: Sheet Template
-      currentUser,                     // B: Shared With
-      currentUser,                     // C: Email ID
-      sheetUrl,                        // D: Sheet URL
-      'Active',                        // E: Sheet Status
-      new Date(),                      // F: Date Created
-      '',                              // G: Total tasks (formula will be added)
-      '',                              // H: Completed tasks (formula will be added)
-      '',                              // I: Pending tasks (formula will be added)
-      '',                              // J: Overdue tasks (formula will be added)
-      ''                               // K: Progress % (formula will be added)
-    ];
+    if (lastRow < 2) {
+      ui.alert('No data rows found in Task Master sheet.');
+      return;
+    }
     
-    // Insert the data
-    masterSheet.getRange(nextRow, 1, 1, masterData.length).setValues([masterData]);
+    // Get all data at once for efficiency
+    const allData = masterSheet.getRange(2, 1, lastRow - 1, 12).getValues();
     
-    // Add formulas for calculated columns (G-K)
-    const sheetIdForFormula = sheetId;
+    let sheetsCreated = 0;
+    let sheetsSkipped = 0;
+    let errors = 0;
     
-    // These formulas will count data from the linked spreadsheet
-    masterSheet.getRange(`G${nextRow}`).setFormula(`=IF(ISBLANK(D${nextRow}),"",COUNTA(IMPORTRANGE(D${nextRow},"A:A"))-1)`);
-    masterSheet.getRange(`H${nextRow}`).setFormula(`=IF(ISBLANK(D${nextRow}),"",COUNTIF(IMPORTRANGE(D${nextRow},"G:G"),"Completed"))`);
-    masterSheet.getRange(`I${nextRow}`).setFormula(`=IF(ISBLANK(D${nextRow}),"",COUNTIFS(IMPORTRANGE(D${nextRow},"G:G"),"Pending")+COUNTIFS(IMPORTRANGE(D${nextRow},"G:G"),"In Progress"))`);
-    masterSheet.getRange(`J${nextRow}`).setFormula(`=IF(ISBLANK(D${nextRow}),"",COUNTIF(IMPORTRANGE(D${nextRow},"I:I"),"Delayed"))`);
-    masterSheet.getRange(`K${nextRow}`).setFormula(`=IF(G${nextRow}=0,"0%",H${nextRow}/G${nextRow})`);
+    for (let i = 0; i < allData.length; i++) {
+      const rowIndex = i + 2; // Actual row number in sheet
+      const rowData = allData[i];
+      
+      // Skip if Column E (status) is not empty
+      if (rowData[4]) { // Column E
+        sheetsSkipped++;
+        continue;
+      }
+      
+      // Skip if no template name in Column A
+      if (!rowData[0]) {
+        sheetsSkipped++;
+        continue;
+      }
+      
+      const result = processSheetCreation(rowIndex, rowData);
+      
+      if (result.success) {
+        sheetsCreated++;
+      } else {
+        errors++;
+      }
+      
+      // Add small delay to prevent hitting quotas
+      Utilities.sleep(100);
+    }
     
-    // Format the progress column as percentage
-    masterSheet.getRange(`K${nextRow}`).setNumberFormat('0.00%');
+    // Show summary popup
+    showBulkCreationSummary(sheetsCreated, sheetsSkipped, errors);
     
   } catch (error) {
-    console.error('Error recording template in Master sheet:', error);
+    console.error('Error in bulkCreatePendingSheets:', error);
+    SpreadsheetApp.getUi().alert('Unexpected error: ' + error.toString());
+  }
+}
+
+/**
+ * Shows the bulk creation summary popup
+ * @param {number} sheetsCreated - Number of sheets successfully created
+ * @param {number} sheetsSkipped - Number of sheets skipped
+ * @param {number} errors - Number of errors encountered
+ */
+function showBulkCreationSummary(sheetsCreated, sheetsSkipped, errors) {
+  const ui = SpreadsheetApp.getUi();
+  
+  const message = 'Bulk Creation Summary\\n' +
+                 '-----------------------\\n' +
+                 'Sheets Created: ' + sheetsCreated + '\\n' +
+                 'Sheets Skipped: ' + sheetsSkipped + '\\n' +
+                 'Errors: ' + errors;
+  
+  ui.alert('Bulk Creation Complete', message, ui.ButtonSet.OK);
+}
+
+// =============================================================================
+// CORE SHEET PROCESSING
+// =============================================================================
+
+/**
+ * Processes the creation of a single sheet for a given row
+ * @param {number} rowIndex - The row number in the Task Master sheet
+ * @param {Array} rowData - The data from the row
+ * @return {Object} Result object with success flag and details
+ */
+function processSheetCreation(rowIndex, rowData) {
+  try {
+    const templateName = rowData[0]; // Column A
+    const sharedWith = rowData[1];   // Column B
+    const emailId = rowData[2];      // Column C
+    
+    // Get template URL from Template_List sheet
+    const templateUrl = getTemplateUrl(templateName);
+    if (!templateUrl) {
+      updateRowStatus(rowIndex, 'Error: Template not found in Template_List');
+      return { success: false, error: 'Template "' + templateName + '" not found in Template_List sheet' };
+    }
+    
+    // Create the sheet copy
+    const sheetResult = createSheetCopy(templateName, sharedWith, templateUrl);
+    if (!sheetResult.success) {
+      updateRowStatus(rowIndex, 'Error: ' + sheetResult.error);
+      return sheetResult;
+    }
+    
+    // Update Task Master row with results
+    updateTaskMasterRow(rowIndex, sheetResult.sheetUrl);
+    
+    // Share with email if provided
+    if (emailId && emailId.includes('@')) {
+      shareSheetWithUser(sheetResult.sheetId, emailId);
+    }
+    
+    // Insert IMPORTRANGE formulas
+    insertImportRangeFormulas(rowIndex, sheetResult.sheetUrl);
+    
+    return {
+      success: true,
+      sheetName: sheetResult.sheetName,
+      sheetUrl: sheetResult.sheetUrl,
+      sheetId: sheetResult.sheetId
+    };
+    
+  } catch (error) {
+    console.error('Error in processSheetCreation:', error);
+    updateRowStatus(rowIndex, 'Error: ' + error.toString());
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Creates a copy of the template sheet
+ * @param {string} templateName - Name of the template
+ * @param {string} sharedWith - Name of the person to share with
+ * @param {string} templateUrl - URL of the template sheet
+ * @return {Object} Result object with sheet details
+ */
+function createSheetCopy(templateName, sharedWith, templateUrl) {
+  try {
+    // Extract file ID from template URL
+    const templateId = extractFileIdFromUrl(templateUrl);
+    const templateFile = DriveApp.getFileById(templateId);
+    
+    // Generate new sheet name
+    const firstWordTemplate = templateName.split(' ')[0] || 'Template';
+    const firstWordShared = (sharedWith.split(' ')[0] || 'User').split('@')[0];
+    const sheetName = firstWordTemplate + '_sheet_' + firstWordShared;
+    
+    // Get or create Created_Sheets folder
+    const createdSheetsFolder = getOrCreateFolder('Created_Sheets');
+    
+    // Create the copy
+    const newFile = templateFile.makeCopy(sheetName, createdSheetsFolder);
+    const newSpreadsheet = SpreadsheetApp.openById(newFile.getId());
+    
+    return {
+      success: true,
+      sheetName: sheetName,
+      sheetUrl: newSpreadsheet.getUrl(),
+      sheetId: newFile.getId(),
+      spreadsheet: newSpreadsheet
+    };
+    
+  } catch (error) {
+    console.error('Error creating sheet copy:', error);
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Updates the Task Master row with sheet creation results
+ * @param {number} rowIndex - Row number to update
+ * @param {string} sheetUrl - URL of the created sheet
+ */
+function updateTaskMasterRow(rowIndex, sheetUrl) {
+  try {
+    const masterSheet = getTaskMasterSheet();
+    const currentDate = new Date();
+    const formattedDate = Utilities.formatDate(currentDate, Session.getScriptTimeZone(), 'dd-MMM-yy');
+    
+    // Update columns D, E, F
+    masterSheet.getRange(rowIndex, 4).setValue(sheetUrl);                    // Column D: Sheet URL
+    masterSheet.getRange(rowIndex, 5).setValue('Sheet created successfully'); // Column E: Status
+    masterSheet.getRange(rowIndex, 6).setValue(formattedDate);               // Column F: Date Created
+    
+  } catch (error) {
+    console.error('Error updating Task Master row:', error);
     throw error;
   }
 }
 
-function getMasterSheet() {
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  let masterSheet;
-  
+/**
+ * Updates only the status column (E) for a row
+ * @param {number} rowIndex - Row number to update
+ * @param {string} status - Status message to set
+ */
+function updateRowStatus(rowIndex, status) {
   try {
-    masterSheet = spreadsheet.getSheetByName('Sheets_Master');
+    const masterSheet = getTaskMasterSheet();
+    masterSheet.getRange(rowIndex, 5).setValue(status); // Column E
   } catch (error) {
-    // Sheets_Master sheet doesn't exist, create it
-    masterSheet = spreadsheet.insertSheet('Sheets_Master');
-    initializeMasterSheet(masterSheet);
+    console.error('Error updating row status:', error);
   }
-  
-  return masterSheet;
 }
 
-function initializeMasterSheet(sheet) {
-  // Set up Master sheet headers
+/**
+ * Inserts IMPORTRANGE formulas into columns G-L for the specified row
+ * @param {number} rowIndex - Row number to update
+ * @param {string} sheetUrl - URL of the target sheet
+ */
+function insertImportRangeFormulas(rowIndex, sheetUrl) {
+  try {
+    const masterSheet = getTaskMasterSheet();
+    const cellRef = 'D' + rowIndex; // Reference to the URL cell
+    
+    // Define formulas as per specifications
+    const formulas = {
+      G: `=IFERROR(COUNTA(IMPORTRANGE(${cellRef},"'Tasks'!B2:B")),0)`,
+      H: `=IFERROR(SUM(COUNTIF(IMPORTRANGE(${cellRef},"'Tasks'!G2:G"),{"Completed","Done","Closed","Complete"})),0)`,
+      I: `=IF(G${rowIndex}=0,0, G${rowIndex}-H${rowIndex}-J${rowIndex})`,
+      J: `=IFERROR(COUNTIFS(IMPORTRANGE(${cellRef},"'Tasks'!E2:E"),"<"&TODAY(),IMPORTRANGE(${cellRef},"'Tasks'!G2:G"),"<>Completed"),0)`,
+      K: `=IFERROR(SUM(COUNTIF(IMPORTRANGE(${cellRef},"'Tasks'!K2:K"),{"No"})),0)`,
+      L: `=IF(G${rowIndex}=0,0,ROUND(H${rowIndex}/G${rowIndex}*100,0))`
+    };
+    
+    // Insert each formula
+    Object.keys(formulas).forEach(col => {
+      const colIndex = col.charCodeAt(0) - 'A'.charCodeAt(0) + 1;
+      masterSheet.getRange(rowIndex, colIndex).setFormula(formulas[col]);
+    });
+    
+  } catch (error) {
+    console.error('Error inserting IMPORTRANGE formulas:', error);
+    throw error;
+  }
+}
+
+// =============================================================================
+// HELPER FUNCTIONS
+// =============================================================================
+
+/**
+ * Gets the Task Master sheet, creates it if it doesn't exist
+ * @return {Sheet} The Task Master sheet
+ */
+function getTaskMasterSheet() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = spreadsheet.getSheetByName('Task Master');
+  
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet('Task Master');
+    initializeTaskMasterSheet(sheet);
+  }
+  
+  return sheet;
+}
+
+/**
+ * Initializes the Task Master sheet with proper headers
+ * @param {Sheet} sheet - The sheet to initialize
+ */
+function initializeTaskMasterSheet(sheet) {
   const headers = [
-    'Sheet Template', 'Shared With', 'Email ID', 'Sheet URL', 'Sheet Status',
-    'Date Created', 'Total tasks', 'Completed tasks', 'Pending tasks', 
-    'Overdue tasks', 'Progress %'
+    'Template Name',    // A
+    'Shared With',      // B  
+    'Email ID',         // C
+    'Sheet URL',        // D
+    'Status',           // E
+    'Date Created',     // F
+    'Total Tasks',      // G
+    'Completed Tasks',  // H
+    'Pending Tasks',    // I
+    'Overdue Tasks',    // J
+    'Not Estimated',    // K
+    'Progress %'        // L
   ];
   
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
-  sheet.getRange(1, 1, 1, headers.length).setBackground('#ff9900');
+  sheet.getRange(1, 1, 1, headers.length).setBackground('#4a90e2');
   sheet.getRange(1, 1, 1, headers.length).setFontColor('white');
   
   // Set column widths
-  sheet.setColumnWidth(1, 120); // Sheet Template
+  sheet.setColumnWidth(1, 150); // Template Name
   sheet.setColumnWidth(2, 150); // Shared With
   sheet.setColumnWidth(3, 200); // Email ID
   sheet.setColumnWidth(4, 300); // Sheet URL
-  sheet.setColumnWidth(5, 100); // Sheet Status
+  sheet.setColumnWidth(5, 150); // Status
   sheet.setColumnWidth(6, 120); // Date Created
-  sheet.setColumnWidth(7, 100); // Total tasks
-  sheet.setColumnWidth(8, 120); // Completed tasks
-  sheet.setColumnWidth(9, 100); // Pending tasks
-  sheet.setColumnWidth(10, 100); // Overdue tasks
-  sheet.setColumnWidth(11, 100); // Progress %
-  
-  // Protect formula columns
-  const formulaRange = sheet.getRange('G:K');
-  const protection = formulaRange.protect().setDescription('Formula columns - do not edit');
-  protection.setWarningOnly(true);
+  sheet.setColumnWidth(7, 100); // Total Tasks
+  sheet.setColumnWidth(8, 120); // Completed Tasks
+  sheet.setColumnWidth(9, 100); // Pending Tasks
+  sheet.setColumnWidth(10, 100); // Overdue Tasks
+  sheet.setColumnWidth(11, 100); // Not Estimated
+  sheet.setColumnWidth(12, 100); // Progress %
 }
 
-function openDashboard() {
+/**
+ * Gets the template URL from the Template_List sheet
+ * @param {string} templateName - Name of the template to find
+ * @return {string|null} Template URL or null if not found
+ */
+function getTemplateUrl(templateName) {
   try {
-    console.log('=== DASHBOARD OPENING ===');
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const templateSheet = spreadsheet.getSheetByName('Template_List');
     
-    // Get the data server-side
-    console.log('Step 1: Calling getMasterData()');
-    var data = getMasterData();
-    console.log('Step 2: Data received:', JSON.stringify(data));
-    console.log('Step 3: Data length:', data ? data.length : 'null');
+    if (!templateSheet) {
+      console.error('Template_List sheet not found');
+      return null;
+    }
     
-    // Create HTML service and pass data directly
-    console.log('Step 4: Creating HTML template from file');
-    var htmlTemplate = HtmlService.createTemplateFromFile('dashboard');
+    const data = templateSheet.getDataRange().getValues();
     
-    console.log('Step 5: Assigning data to template');
-    htmlTemplate.dashboardData = data;
-    console.log('Step 6: Template data assigned. Data preview:', data && data.length > 0 ? data[0].cardTitle : 'No data');
+    for (let i = 1; i < data.length; i++) { // Skip header row
+      if (data[i][0] && data[i][0].toString().trim() === templateName.trim()) {
+        return data[i][1]; // Return URL from column B
+      }
+    }
     
-    console.log('Step 7: Evaluating template');
-    var htmlOutput = htmlTemplate.evaluate()
-      .setWidth(1200)
-      .setHeight(800)
-      .setTitle('Task & Idea Manager Dashboard');
-    
-    console.log('Step 8: Showing modal dialog');
-    SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Dashboard');
-    console.log('=== DASHBOARD OPENED ===');
+    return null;
     
   } catch (error) {
-    console.error('Error in openDashboard:', error);
+    console.error('Error getting template URL:', error);
+    return null;
+  }
+}
+
+/**
+ * Extracts file ID from Google Sheets URL
+ * @param {string} url - Google Sheets URL
+ * @return {string} File ID
+ */
+function extractFileIdFromUrl(url) {
+  const match = url.match(/[-\\w]{25,}/);
+  if (!match) {
+    throw new Error('Invalid Google Sheets URL: ' + url);
+  }
+  return match[0];
+}
+
+/**
+ * Gets or creates a folder with the specified name
+ * @param {string} folderName - Name of the folder
+ * @return {Folder} The folder object
+ */
+function getOrCreateFolder(folderName) {
+  try {
+    // Try to find existing folder in the same location as the current spreadsheet
+    const currentFile = DriveApp.getFileById(SpreadsheetApp.getActiveSpreadsheet().getId());
+    const parentFolders = currentFile.getParents();
+    
+    let parentFolder = DriveApp.getRootFolder();
+    if (parentFolders.hasNext()) {
+      parentFolder = parentFolders.next();
+    }
+    
+    const existingFolders = parentFolder.getFoldersByName(folderName);
+    if (existingFolders.hasNext()) {
+      return existingFolders.next();
+    }
+    
+    // Create new folder
+    return parentFolder.createFolder(folderName);
+    
+  } catch (error) {
+    console.error('Error getting/creating folder:', error);
+    throw error;
+  }
+}
+
+/**
+ * Shares the created sheet with the specified email
+ * @param {string} fileId - ID of the file to share
+ * @param {string} email - Email address to share with
+ */
+function shareSheetWithUser(fileId, email) {
+  try {
+    const file = DriveApp.getFileById(fileId);
+    file.addEditor(email);
+  } catch (error) {
+    console.error('Error sharing sheet with user:', error);
+    // Don't throw error - sharing failure shouldn't stop the process
+  }
+}
+
+// =============================================================================
+// ENHANCED DASHBOARD
+// =============================================================================
+
+/**
+ * Opens the enhanced dashboard in a new browser window
+ */
+function openDashboard() {
+  try {
+    console.log('Opening enhanced dashboard...');
+    
+    // Get data from Task Master sheet
+    const dashboardData = getDashboardData();
+    
+    // Create HTML template
+    const htmlTemplate = HtmlService.createTemplateFromFile('dashboard');
+    htmlTemplate.dashboardData = dashboardData;
+    
+    // Create output and open in new window
+    const htmlOutput = htmlTemplate.evaluate()
+      .setTitle('Task Management Dashboard')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    
+    // Show in modal dialog (which can be opened in new window by user)
+    SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Task Management Dashboard');
+    
+  } catch (error) {
+    console.error('Error opening dashboard:', error);
     SpreadsheetApp.getUi().alert('Error opening dashboard: ' + error.toString());
   }
 }
 
-function getMasterSheetData() {
+/**
+ * Gets dashboard data directly from Task Master columns G-L
+ * @return {Array} Array of dashboard card data
+ */
+function getDashboardData() {
   try {
-    const masterSheet = getMasterSheet();
+    const masterSheet = getTaskMasterSheet();
     const lastRow = masterSheet.getLastRow();
     
-    if (lastRow <= 1) {
+    if (lastRow < 2) {
       return [];
     }
     
-    const range = masterSheet.getRange(2, 1, lastRow - 1, 11);
-    const values = range.getValues();
+    // Get all data from columns A-L
+    const data = masterSheet.getRange(2, 1, lastRow - 1, 12).getValues();
+    const result = [];
     
-    const data = values.map(row => ({
-      templateType: row[0],
-      sharedWith: row[1],
-      emailId: row[2],
-      sheetUrl: row[3],
-      sheetStatus: row[4],
-      dateCreated: row[5],
-      totalTasks: row[6] || 0,
-      completedTasks: row[7] || 0,
-      pendingTasks: row[8] || 0,
-      overdueTasks: row[9] || 0,
-      progressPercent: row[10] || 0
-    }));
-    
-    return data;
-    
-  } catch (error) {
-    console.error('Error getting Master sheet data:', error);
-    return [];
-  }
-}
-
-function getMasterData() {
-  console.log('=== GET MASTER DATA (LIVE) ===');
-  
-  try {
-    // Get the current spreadsheet
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    console.log('Spreadsheet accessed:', ss.getName());
-    
-    // Get the Sheets_Master sheet
-    var sheet = ss.getSheetByName('Sheets_Master');
-    console.log('Sheet found:', sheet ? 'Yes' : 'No');
-    
-    if (!sheet) {
-      console.error('Sheets_Master sheet not found');
-      return [];
-    }
-    
-    var lastRow = sheet.getLastRow();
-    console.log('Last row:', lastRow);
-    
-    if (lastRow <= 1) {
-      console.log('No data rows found');
-      return [];
-    }
-    
-    // Get headers from row 1
-    var headers = sheet.getRange(1, 1, 1, 11).getValues()[0];
-    console.log('Headers:', headers);
-    
-    // Get data from row 2 onwards
-    var data = sheet.getRange(2, 1, lastRow - 1, 11).getValues();
-    console.log('Raw data rows:', data.length);
-    console.log('Sample row:', data[0]);
-    
-    var result = [];
-    
-    for (var i = 0; i < data.length; i++) {
-      var row = data[i];
-      console.log('Processing row ' + (i + 1) + ':', row);
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
       
-      // Column A and B processing
-      var colA = row[0] || '';
-      var colB = row[1] || '';
-      var firstWordA = colA.toString().split(' ')[0] || '';
-      var firstWordB = colB.toString().split(' ')[0] || colB.toString().split('@')[0] || '';
-      var cardTitle = firstWordA + ' Sheet ' + firstWordB;
+      // Skip rows without template name or sheet URL
+      if (!row[0] || !row[3]) continue;
       
-      console.log('Card title created:', cardTitle);
-      console.log('Values - G:', row[6], 'H:', row[7], 'I:', row[8], 'J:', row[9], 'K:', row[10]);
+      // Create card title from Column A and B
+      const templateName = row[0].toString();
+      const sharedWith = row[1].toString();
+      const firstWordTemplate = templateName.split(' ')[0] || 'Template';
+      const firstWordShared = (sharedWith.split(' ')[0] || 'User').split('@')[0];
+      const cardTitle = firstWordTemplate + ' Sheet ' + firstWordShared;
       
-      var item = {
-        template: colA,
+      // Extract values directly from columns G-L
+      const cardData = {
         cardTitle: cardTitle,
-        sharedWith: colB,
-        email: row[2] || '',
-        url: row[3] || '',
-        status: row[4] || 'Active',
-        createdAt: row[5] || new Date(),
-        total: row[6] || 0,
-        completed: row[7] || 0,
-        pending: row[8] || 0,
-        overdue: row[9] || 0,
-        progress: row[10] || 0,
-        totalLabel: headers[6] || 'Total',
-        completedLabel: headers[7] || 'Completed',
-        pendingLabel: headers[8] || 'Pending',
-        overdueLabel: headers[9] || 'Overdue',
-        progressLabel: headers[10] || 'Progress'
+        templateName: templateName,
+        sheetUrl: row[3],                    // Column D
+        totalTasks: row[6] || 0,            // Column G
+        completedTasks: row[7] || 0,        // Column H  
+        pendingTasks: row[8] || 0,          // Column I
+        overdueTasks: row[9] || 0,          // Column J
+        notEstimated: row[10] || 0,         // Column K
+        progressPercent: row[11] || 0       // Column L (already as percentage)
       };
       
-      result.push(item);
-      console.log('Item added:', item.cardTitle);
+      result.push(cardData);
     }
-    
-    console.log('Final result:', result.length + ' items created');
-    console.log('=== GET MASTER DATA (LIVE) END ===');
     
     return result;
     
   } catch (error) {
-    console.error('Error reading live data:', error.toString());
-    console.log('Falling back to test data due to error');
-    
-    // Return test data as fallback
-    return [
-      {
-        template: 'Error: ' + error.message,
-        cardTitle: 'Error Loading Live Data',
-        sharedWith: 'System',
-        email: '',
-        url: '#',
-        status: 'Error',
-        createdAt: new Date(),
-        total: 0,
-        completed: 0,
-        pending: 0,
-        overdue: 0,
-        progress: 0,
-        totalLabel: 'Total',
-        completedLabel: 'Completed',
-        pendingLabel: 'Pending',
-        overdueLabel: 'Overdue',
-        progressLabel: 'Progress'
-      }
-    ];
-  }
-}
-
-function getMasterDataFromSheet() {
-  // This is the actual sheet reading function - we'll test this separately
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName('Sheets_Master');
-  
-  var lastRow = sheet.getLastRow();
-  
-  if (lastRow <= 1) {
+    console.error('Error getting dashboard data:', error);
     return [];
   }
-  
-  // Get headers
-  var headers = sheet.getRange(1, 1, 1, 11).getValues()[0];
-  
-  // Get data
-  var data = sheet.getRange(2, 1, lastRow - 1, 11).getValues();
-  
-  var result = [];
-  
-  for (var i = 0; i < data.length; i++) {
-    var row = data[i];
-    
-    // Column A and B processing
-    var colA = row[0] || '';
-    var colB = row[1] || '';
-    var firstWordA = colA.toString().split(' ')[0] || '';
-    var firstWordB = colB.toString().split(' ')[0] || colB.toString().split('@')[0] || '';
-    var cardTitle = firstWordA + ' Sheet ' + firstWordB;
-    
-    result.push({
-      template: colA,
-      cardTitle: cardTitle,
-      sharedWith: colB,
-      email: row[2] || '',
-      url: row[3] || '',
-      status: row[4] || 'Active',
-      createdAt: row[5] || new Date(),
-      total: row[6] || 0,
-      completed: row[7] || 0,
-      pending: row[8] || 0,
-      overdue: row[9] || 0,
-      progress: row[10] || 0,
-      totalLabel: headers[6] || 'Total',
-      completedLabel: headers[7] || 'Completed',
-      pendingLabel: headers[8] || 'Pending',
-      overdueLabel: headers[9] || 'Overdue',
-      progressLabel: headers[10] || 'Progress'
-    });
-  }
-  
-  return result;
 }
 
+// =============================================================================
+// UTILITY FUNCTIONS
+// =============================================================================
 
+/**
+ * Include function for HTML templates
+ * @param {string} filename - Name of the HTML file to include
+ * @return {string} Content of the HTML file
+ */
 function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
