@@ -17,8 +17,7 @@
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
   ui.createMenu('Task Management System')
-    .addItem('Create Single Sheet', 'createSingleSheet')
-    .addItem('Bulk Create Pending Sheets', 'bulkCreatePendingSheets')
+    .addItem('Create Sheets', 'createSheets')
     .addSeparator()
     .addItem('Open Dashboard', 'openDashboard')
     .addToUi();
@@ -44,67 +43,14 @@ function doGet() {
 }
 
 // =============================================================================
-// SINGLE SHEET CREATION
+// SHEET CREATION
 // =============================================================================
 
 /**
- * Creates a single sheet based on the selected row in Task Master
- * Uses the template URL from the Template_List sheet
- */
-function createSingleSheet() {
-  try {
-    const ui = SpreadsheetApp.getUi();
-    
-    // Get the active range to determine which row to process
-    const activeRange = SpreadsheetApp.getActiveRange();
-    const activeRow = activeRange.getRow();
-    
-    // Ensure we're working with a data row (not header)
-    if (activeRow < 2) {
-      ui.alert('Please select a data row (row 2 or below) in the Sheets_Master sheet.');
-      return;
-    }
-    
-    const masterSheet = getSheetsMasterSheet();
-    const rowData = masterSheet.getRange(activeRow, 1, 1, 12).getValues()[0];
-    
-    // Check if sheet already exists (Column D has URL)
-    if (rowData[3]) { // Column D
-      ui.alert('Sheet already exists for this row!\\nURL: ' + rowData[3]);
-      return;
-    }
-    
-    // Check if template name exists (Column A)
-    if (!rowData[0]) {
-      ui.alert('No template name found in Column A for this row.');
-      return;
-    }
-    
-    const result = processSheetCreation(activeRow, rowData);
-    
-    if (result.success) {
-      ui.alert('Sheet Created Successfully!\\n\\n' +
-               'Name: ' + result.sheetName + '\\n' +
-               'URL: ' + result.sheetUrl);
-    } else {
-      ui.alert('Error: ' + result.error);
-    }
-    
-  } catch (error) {
-    console.error('Error in createSingleSheet:', error);
-    SpreadsheetApp.getUi().alert('Unexpected error: ' + error.toString());
-  }
-}
-
-// =============================================================================
-// BULK SHEET CREATION
-// =============================================================================
-
-/**
- * Creates sheets for all rows in Task Master where Column E is empty
+ * Creates sheets for all rows in Sheets_Master where Column E is empty
  * Shows summary popup upon completion
  */
-function bulkCreatePendingSheets() {
+function createSheets() {
   try {
     const ui = SpreadsheetApp.getUi();
     
@@ -166,7 +112,7 @@ function bulkCreatePendingSheets() {
     showBulkCreationSummary(sheetsCreated, sheetsSkipped, errors);
     
   } catch (error) {
-    console.error('Error in bulkCreatePendingSheets:', error);
+    console.error('Error in createSheets:', error);
     SpreadsheetApp.getUi().alert('Unexpected error: ' + error.toString());
   }
 }
@@ -408,11 +354,27 @@ function getTemplateUrl(templateName) {
  * @return {string} File ID
  */
 function extractFileIdFromUrl(url) {
-  const match = url.match(/[-\\w]{25,}/);
-  if (!match) {
-    throw new Error('Invalid Google Sheets URL: ' + url);
+  // Try multiple patterns to extract Google Sheets ID
+  
+  // Pattern 1: /spreadsheets/d/{ID}/
+  let match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (match) {
+    return match[1];
   }
-  return match[0];
+  
+  // Pattern 2: /open?id={ID}
+  match = url.match(/[?&]id=([a-zA-Z0-9-_]+)/);
+  if (match) {
+    return match[1];
+  }
+  
+  // Pattern 3: Look for any Google Drive file ID pattern (44 characters)
+  match = url.match(/[a-zA-Z0-9-_]{25,}/);
+  if (match) {
+    return match[0];
+  }
+  
+  throw new Error('Invalid Google Sheets URL: ' + url);
 }
 
 /**
