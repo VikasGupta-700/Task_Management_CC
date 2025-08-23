@@ -1,26 +1,25 @@
-# Task & Idea Manager - Google Apps Script
+# Task Management System - Google Apps Script
 
-A comprehensive task and idea management system built with Google Apps Script, Google Sheets, and a responsive HTML dashboard.
+An enhanced task management system built with Google Apps Script, Google Sheets, and a responsive HTML dashboard.
 
 ## Features
 
-- **Template Creation**: Create standardized Idea and Task templates
-- **Master Sheet Tracking**: Centralized tracking of all created templates
+- **Bulk Sheet Creation**: Create multiple task sheets from master template list
+- **Single Sheet Creation**: Create individual sheets from task master
 - **Interactive Dashboard**: Visual dashboard with charts and progress tracking
 - **Automated Metrics**: Real-time calculation of task completion, overdue items, and progress
-- **Sheet Management**: Automatic creation and sharing of template copies
-- **Formula Integration**: IMPORTRANGE formulas for live data synchronization
+- **Smart Sheet Management**: Automatic creation, sharing, and status tracking
+- **IMPORTRANGE Integration**: Live data synchronization with comprehensive error handling
 
 ## Project Structure
 
 ```
 ├── src/
 │   └── gas/
-│       ├── Code.js          # Main template creation and dashboard functions
-│       ├── Code.gs          # Enhanced sheet management with IMPORTRANGE
+│       ├── Code.gs          # Enhanced task management system with bulk creation
 │       └── dashboard.html   # Responsive HTML dashboard with charts
-├── docs/                    # Documentation files
-├── examples/               # Example configurations and use cases
+├── test-data*.csv          # Test data files for various scenarios
+├── TEST-SCENARIOS.md       # Test scenarios documentation
 └── README.md              # This file
 ```
 
@@ -37,42 +36,33 @@ A comprehensive task and idea management system built with Google Apps Script, G
 1. **Clone or Download**: Get the project files to your local machine
 2. **Create New GAS Project**: Go to [script.google.com](https://script.google.com) and create a new project
 3. **Upload Files**: Copy the contents from `src/gas/` to your GAS project:
-   - `Code.js` or `Code.gs` (choose one based on your needs)
-   - `dashboard.html`
+   - `Code.gs` - Main enhanced task management system
+   - `dashboard.html` - Interactive dashboard
 
 ### Setup
 
-1. **Choose Your Implementation**:
-   - **Code.js**: Basic implementation with direct template creation
-   - **Code.gs**: Advanced implementation with IMPORTRANGE formulas and template management
+1. **Create Required Sheets**:
+   - `Sheets_Master`: Main tracking sheet with columns for template tracking
+   - `Template_List`: List of available templates with their URLs
 
-2. **Create Required Sheets** (for Code.gs):
-   - `Sheets_Master`: Main tracking sheet (auto-created)
-   - `Template_List`: List of available templates with URLs
-
-3. **Deploy Dashboard** (Optional):
-   - For web app access: Deploy as Web App
-   - For sidebar access: Use the menu items
+2. **Deploy Dashboard** (Optional):
+   - For web app access: Deploy as Web App with execute permissions
+   - Access via menu: `Task Management System` → `Open Dashboard`
 
 ## Usage
 
-### Creating Templates
+### Creating Task Sheets
 
-**Using Code.js:**
-1. Open your Google Sheet
-2. Use menu: `Task & Idea Manager` → `Create Idea Template` or `Create Task Template`
-3. Templates are automatically created and tracked in `Sheets_Master`
-
-**Using Code.gs:**
-1. Set up `Template_List` sheet with template names and URLs
-2. Add entries to `Sheets_Master` with template names and user information
-3. Use menu: `Task Manager` → `Generate Sheets`
+1. **Set up Template List**: Create `Template_List` sheet with template names and URLs
+2. **Add to Sheets_Master**: Add entries with template names and user information
+3. **Bulk Creation**: Use menu `Task Management System` → `Create Sheets`
+4. **Individual Creation**: Process single rows where Column E (status) is empty
 
 ### Dashboard Access
 
-1. **Modal Dialog**: Menu → `Open Dashboard`
-2. **Sidebar**: Menu → `Open Dashboard (Sidebar)` (Code.gs)
-3. **Web App**: Deploy as web app for standalone access
+1. **Modal Dialog**: Menu → `Task Management System` → `Open Dashboard`
+2. **Web App**: Deploy as web app for standalone dashboard access
+3. **Direct Function**: Call `getDashboardData()` for programmatic access
 
 ### Sheet Structure
 
@@ -109,17 +99,14 @@ A comprehensive task and idea management system built with Google Apps Script, G
 
 ## Key Functions
 
-### Code.js Functions
-- `createIdeaTemplate()`: Creates new idea tracking template
-- `createTaskTemplate()`: Creates new task tracking template
-- `openDashboard()`: Opens interactive dashboard
-- `getMasterData()`: Retrieves data for dashboard display
-
-### Code.gs Functions
-- `processSheetsMaster()`: Creates sheet copies from templates
-- `updateMetrics()`: Updates/ensures IMPORTRANGE formulas
-- `showDashboardSidebar()`: Opens dashboard in sidebar
-- `detectTasksSheetName()`: Auto-detects task sheet names
+### Core Functions
+- `createSheets()`: Bulk creates sheets for all pending rows in Sheets_Master
+- `processSheetCreation()`: Creates individual sheet from template
+- `openDashboard()`: Opens interactive dashboard modal
+- `getDashboardData()`: Retrieves comprehensive dashboard data
+- `updateTaskMasterRow()`: Updates master sheet with new sheet information
+- `insertImportRangeFormulas()`: Adds live data synchronization formulas
+- `getOverdueTaskDetails()`: Calculates overdue task metrics
 
 ## Dashboard Features
 
@@ -189,8 +176,10 @@ For issues and questions:
 ## Version History
 
 - **v1.0**: Initial release with basic template creation
-- **v1.1**: Added IMPORTRANGE formulas and enhanced tracking
+- **v1.1**: Added IMPORTRANGE formulas and enhanced tracking  
 - **v1.2**: Responsive dashboard with charts and improved UI
+- **v2.0**: Complete system overhaul with bulk creation and enhanced error handling
+- **v2.1**: Menu simplification, URL validation, and dashboard improvements
 
 ---
 

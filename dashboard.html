@@ -282,6 +282,71 @@
                 grid-template-columns: repeat(2, 1fr);
             }
         }
+
+        /* Enhanced Dashboard Styles */
+        .overdue-section {
+            margin: 15px 0;
+            padding: 10px;
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            border-radius: 4px;
+        }
+
+        .overdue-section h4 {
+            margin: 0 0 10px 0;
+            color: #856404;
+            font-size: 0.9rem;
+        }
+
+        .overdue-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+
+        .overdue-table th,
+        .overdue-table td {
+            padding: 6px 8px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .overdue-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            color: #495057;
+        }
+
+        .overdue-table td:last-child {
+            text-align: center;
+            font-weight: bold;
+            color: #dc3545;
+        }
+
+        .error-message {
+            color: #721c24;
+            font-size: 0.8rem;
+            margin: 5px 0;
+            font-style: italic;
+        }
+
+        .info-message {
+            color: #856404;
+            font-size: 0.8rem;
+            margin: 5px 0;
+            font-style: italic;
+        }
+
+        .card-chart-container {
+            margin-top: 15px;
+            height: 120px;
+            position: relative;
+        }
+
+        .card-chart {
+            width: 100% !important;
+            height: 120px !important;
+        }
     </style>
 </head>
 <body>
@@ -402,9 +467,9 @@
             console.log('Input data:', dashboardData);
             
             const totalTemplates = dashboardData.length;
-            const totalTasks = dashboardData.reduce((sum, item) => sum + (item.total || 0), 0);
-            const completedTasks = dashboardData.reduce((sum, item) => sum + (item.completed || 0), 0);
-            const overdueTasks = dashboardData.reduce((sum, item) => sum + (item.overdue || 0), 0);
+            const totalTasks = dashboardData.reduce((sum, item) => sum + (item.totalTasks || 0), 0);
+            const completedTasks = dashboardData.reduce((sum, item) => sum + (item.completedTasks || 0), 0);
+            const overdueTasks = dashboardData.reduce((sum, item) => sum + (item.overdueTasks || 0), 0);
 
             console.log('Calculated totals:', {totalTemplates, totalTasks, completedTasks, overdueTasks});
 
@@ -437,15 +502,62 @@
         }
 
         function createTemplateCards(dashboardData) {
-            console.log('=== CREATE TEMPLATE CARDS ===');
+            console.log('=== CREATE ENHANCED TEMPLATE CARDS ===');
             console.log('Input data for template cards:', dashboardData);
             
             const templatesHTML = dashboardData.map((template, index) => {
                 console.log(`Processing template ${index}:`, template);
                 
-                const isIdea = template.template.includes('Idea');
+                const isIdea = template.templateName && template.templateName.toLowerCase().includes('idea');
                 const typeClass = isIdea ? 'idea' : 'task';
-                const progressPercent = Math.round((template.progress || 0) * 100);
+                const progressPercent = template.progressPercent || 0;
+                
+                // Create overdue tasks section
+                let overdueTasksHTML = '';
+                if (template.overdueTasks > 0) {
+                    if (template.hasError) {
+                        overdueTasksHTML = `
+                            <div class="overdue-section">
+                                <h4>⚠️ Error Loading Overdue Tasks</h4>
+                                <p class="error-message">${template.errorMessage}</p>
+                            </div>
+                        `;
+                    } else if (template.overdueTaskDetails && template.overdueTaskDetails.length > 0) {
+                        const tasksRows = template.overdueTaskDetails.map(task => `
+                            <tr>
+                                <td>${task.taskTitle}</td>
+                                <td>${task.delayDays} days</td>
+                            </tr>
+                        `).join('');
+                        
+                        overdueTasksHTML = `
+                            <div class="overdue-section">
+                                <h4>🔴 Delayed Tasks</h4>
+                                <table class="overdue-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Task Title</th>
+                                            <th>Delay Days</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${tasksRows}
+                                    </tbody>
+                                </table>
+                            </div>
+                        `;
+                    } else {
+                        overdueTasksHTML = `
+                            <div class="overdue-section">
+                                <h4>📊 ${template.overdueTasks} Overdue Tasks</h4>
+                                <p class="info-message">Details not available (Dashboard sheet not found)</p>
+                            </div>
+                        `;
+                    }
+                }
+                
+                // Create chart container with unique ID
+                const chartId = `chart-${index}`;
                 
                 console.log(`Template ${index} - isIdea: ${isIdea}, typeClass: ${typeClass}, progress: ${progressPercent}%`);
                 
@@ -458,26 +570,26 @@
                         
                         <div class="template-info">
                             <p><strong>Owner:</strong> ${template.sharedWith || 'Unknown'}</p>
-                            <p><strong>Created:</strong> ${formatDate(template.createdAt)}</p>
-                            <p><strong>Status:</strong> ${template.status || 'Active'}</p>
+                            <p><strong>Created:</strong> ${formatDate(template.dateCreated)}</p>
+                            <p><strong>Sheet:</strong> <a href="${template.sheetUrl}" target="_blank">Open</a></p>
                         </div>
                         
                         <div class="template-stats">
                             <div class="stat-item">
-                                <div class="stat-number">${template.total || 0}</div>
-                                <div class="stat-label">${template.totalLabel || 'Total'}</div>
+                                <div class="stat-number">${template.totalTasks || 0}</div>
+                                <div class="stat-label">Total</div>
                             </div>
                             <div class="stat-item">
-                                <div class="stat-number">${template.completed || 0}</div>
-                                <div class="stat-label">${template.completedLabel || 'Completed'}</div>
+                                <div class="stat-number">${template.completedTasks || 0}</div>
+                                <div class="stat-label">Completed</div>
                             </div>
                             <div class="stat-item">
-                                <div class="stat-number">${template.pending || 0}</div>
-                                <div class="stat-label">${template.pendingLabel || 'Pending'}</div>
+                                <div class="stat-number">${template.onTrack || 0}</div>
+                                <div class="stat-label">On Track</div>
                             </div>
                             <div class="stat-item">
-                                <div class="stat-number">${template.overdue || 0}</div>
-                                <div class="stat-label">${template.overdueLabel || 'Overdue'}</div>
+                                <div class="stat-number">${template.overdueTasks || 0}</div>
+                                <div class="stat-label">Overdue</div>
                             </div>
                         </div>
                         
@@ -488,9 +600,11 @@
                             <div class="progress-text">${progressPercent}% Complete</div>
                         </div>
                         
-                        <a href="${template.url}" target="_blank" class="template-link">
-                            Open Template
-                        </a>
+                        ${overdueTasksHTML}
+                        
+                        <div class="card-chart-container">
+                            <canvas id="${chartId}" class="card-chart"></canvas>
+                        </div>
                     </div>
                 `;
             }).join('');
@@ -504,9 +618,88 @@
             if (templatesElement) {
                 templatesElement.innerHTML = templatesHTML;
                 console.log('Template cards HTML inserted');
+                
+                // Create individual charts for each card
+                setTimeout(() => {
+                    createIndividualCharts(dashboardData);
+                }, 100);
             } else {
                 console.error('Could not find templatesGrid element');
             }
+        }
+
+        function createIndividualCharts(dashboardData) {
+            console.log('=== CREATE INDIVIDUAL CHARTS ===');
+            
+            dashboardData.forEach((template, index) => {
+                const chartId = `chart-${index}`;
+                const chartElement = document.getElementById(chartId);
+                
+                if (!chartElement) {
+                    console.error(`Chart element ${chartId} not found`);
+                    return;
+                }
+                
+                const ctx = chartElement.getContext('2d');
+                
+                // Data for the chart
+                const completed = template.completedTasks || 0;
+                const overdue = template.overdueTasks || 0;
+                const notEstimated = template.totalTasks - template.estimated || 0;
+                const remaining = Math.max(0, template.totalTasks - completed - overdue);
+                
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Completed', 'Overdue', 'Remaining', 'Not Est.'],
+                        datasets: [{
+                            data: [completed, overdue, remaining, notEstimated],
+                            backgroundColor: [
+                                '#28a745', // Green for completed
+                                '#dc3545', // Red for overdue
+                                '#ffc107', // Yellow for remaining
+                                '#6c757d'  // Gray for not estimated
+                            ],
+                            borderColor: [
+                                '#1e7e34',
+                                '#c82333',
+                                '#e0a800',
+                                '#545b62'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    stepSize: 1,
+                                    font: {
+                                        size: 10
+                                    }
+                                }
+                            },
+                            x: {
+                                ticks: {
+                                    font: {
+                                        size: 9
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                console.log(`Created chart for ${template.cardTitle}`);
+            });
         }
 
         function createCharts(dashboardData) {
@@ -518,7 +711,7 @@
             const ctx = document.getElementById('progressChart').getContext('2d');
             
             const labels = dashboardData.map(item => item.cardTitle);
-            const progressData = dashboardData.map(item => Math.round((item.progress || 0) * 100));
+            const progressData = dashboardData.map(item => item.progressPercent || 0);
             
             new Chart(ctx, {
                 type: 'bar',
@@ -559,16 +752,16 @@
         function createStatusChart(dashboardData) {
             const ctx = document.getElementById('statusChart').getContext('2d');
             
-            const totalCompleted = dashboardData.reduce((sum, item) => sum + (item.completed || 0), 0);
-            const totalPending = dashboardData.reduce((sum, item) => sum + (item.pending || 0), 0);
-            const totalOverdue = dashboardData.reduce((sum, item) => sum + (item.overdue || 0), 0);
+            const totalCompleted = dashboardData.reduce((sum, item) => sum + (item.completedTasks || 0), 0);
+            const totalOnTrack = dashboardData.reduce((sum, item) => sum + (item.onTrack || 0), 0);
+            const totalOverdue = dashboardData.reduce((sum, item) => sum + (item.overdueTasks || 0), 0);
             
             new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: ['Completed', 'Pending', 'Overdue'],
+                    labels: ['Completed', 'On Track', 'Overdue'],
                     datasets: [{
-                        data: [totalCompleted, totalPending, totalOverdue],
+                        data: [totalCompleted, totalOnTrack, totalOverdue],
                         backgroundColor: [
                             '#4CAF50',
                             '#FF9800',

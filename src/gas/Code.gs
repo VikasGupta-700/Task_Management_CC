@@ -1,275 +1,626 @@
-/********************************************************
- * Task Manager - Code.gs
- * - Inserts formulas into Sheets_Master (G:K) using IMPORTRANGE
- * - Creates sheet copies in Created_Sheets
- * - Does NOT compute metrics server-side (formulas do)
- * - Menu: Generate Sheets, Ensure Formulas, Force Reinsert, Open Dashboard
- ********************************************************/
+/**
+ * Enhanced Task Management System
+ * Features:
+ * - Create Single Sheet from Task Master
+ * - Bulk Create Pending Sheets 
+ * - Enhanced Dashboard with Charts
+ * - Comprehensive Error Handling
+ */
 
+// =============================================================================
+// MENU SYSTEM
+// =============================================================================
+
+/**
+ * Creates the main menu when spreadsheet opens
+ */
 function onOpen() {
-  SpreadsheetApp.getUi()
-    .createMenu("Task Manager")
-    .addItem("Generate Sheets", "processSheetsMaster")
-    .addItem("Ensure Formulas / Update Metrics", "updateMetrics")
-    .addItem("Force Reinsert Formulas", "forceReinsertFormulas")
-    .addItem("Open Dashboard (Sidebar)", "showDashboardSidebar")
+  const ui = SpreadsheetApp.getUi();
+  ui.createMenu('Task Management System')
+    .addItem('Create Sheets', 'createSheets')
+    .addSeparator()
+    .addItem('Open Dashboard', 'openDashboard')
     .addToUi();
 }
 
-/** Standalone web app entry (deploy as Web App to use this URL) */
+/**
+ * Web app entry point for standalone dashboard access
+ * Deploy this script as a Web App to get a direct URL to the dashboard
+ */
 function doGet() {
-  return HtmlService.createHtmlOutputFromFile("dashboard")
-    .setTitle("Task Dashboard");
+  try {
+    const dashboardData = getDashboardData();
+    const htmlTemplate = HtmlService.createTemplateFromFile('dashboard');
+    htmlTemplate.dashboardData = dashboardData;
+    
+    return htmlTemplate.evaluate()
+      .setTitle('Task Management Dashboard')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+      
+  } catch (error) {
+    return HtmlService.createHtmlOutput('<h1>Error loading dashboard</h1><p>' + error.toString() + '</p>');
+  }
 }
 
+// =============================================================================
+// SHEET CREATION
+// =============================================================================
+
 /**
- * Create copies for rows that have template name but no URL.
- * After copy, write D (URL), E (status), F (date), and insert formulas G:K (IMPORTRANGE).
+ * Creates sheets for all rows in Sheets_Master where Column E is empty
+ * Shows summary popup upon completion
  */
-function processSheetsMaster() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var master = ss.getSheetByName("Sheets_Master");
-  var templateList = ss.getSheetByName("Template_List");
-  if (!master || !templateList) {
-    SpreadsheetApp.getUi().alert("Missing Sheets_Master or Template_List.");
-    return;
-  }
-
-  ensureHeaders(master);
-
-  // Build template map
-  var tRows = templateList.getDataRange().getValues();
-  var tMap = {};
-  for (var i = 1; i < tRows.length; i++) {
-    var nm = (tRows[i][0] || "").toString().trim();
-    var url = (tRows[i][1] || "").toString().trim();
-    if (nm && url) tMap[nm] = url;
-  }
-
-  // Parent folder and Created_Sheets
-  var ssFile = DriveApp.getFileById(ss.getId());
-  var parentFolder = ssFile.getParents().hasNext() ? ssFile.getParents().next() : DriveApp.getRootFolder();
-  var createdFolder = getOrCreateSubFolder(parentFolder, "Created_Sheets");
-
-  var mData = master.getDataRange().getValues();
-  for (var r = 1; r < mData.length; r++) {
-    var templateName = (mData[r][0] || "").toString().trim();
-    var sharedWith = (mData[r][1] || "").toString().trim();
-    var email = (mData[r][2] || "").toString().trim();
-    var sheetUrl = (mData[r][3] || "").toString().trim();
-
-    if (!templateName || sheetUrl) continue; // create only when template present and URL blank
-
-    try {
-      var srcUrl = tMap[templateName];
-      if (!srcUrl) {
-        master.getRange(r + 1, 5).setValue("Template not found"); // E
+function createSheets() {
+  try {
+    const ui = SpreadsheetApp.getUi();
+    
+    // Confirm before proceeding
+    const response = ui.alert(
+      'Bulk Create Confirmation',
+      'This will create sheets for all rows where status (Column E) is empty.\\n\\nProceed?',
+      ui.ButtonSet.YES_NO
+    );
+    
+    if (response !== ui.Button.YES) {
+      return;
+    }
+    
+    const masterSheet = getSheetsMasterSheet();
+    const lastRow = masterSheet.getLastRow();
+    
+    if (lastRow < 2) {
+      ui.alert('No data rows found in Sheets_Master sheet.');
+      return;
+    }
+    
+    // Get all data at once for efficiency
+    const allData = masterSheet.getRange(2, 1, lastRow - 1, 12).getValues();
+    
+    let sheetsCreated = 0;
+    let sheetsSkipped = 0;
+    let errors = 0;
+    
+    for (let i = 0; i < allData.length; i++) {
+      const rowIndex = i + 2; // Actual row number in sheet
+      const rowData = allData[i];
+      
+      // Skip if Column E (status) is not empty
+      if (rowData[4]) { // Column E
+        sheetsSkipped++;
         continue;
       }
-      var srcId = extractFileId(srcUrl);
-      var srcFile = DriveApp.getFileById(srcId);
-
-      // Build new name: FirstWordOfTemplate_Sheet_FirstName (spaces -> underscores)
-      var firstWord = (templateName.split(/\s+/)[0] || "Template");
-      var firstName = (sharedWith.split(/\s+/)[0] || "User");
-      var newName = (firstWord + " Sheet " + firstName).replace(/\s+/g, "_");
-
-      var newFile = srcFile.makeCopy(newName, createdFolder);
-      var newId = newFile.getId();
-      var newSS = SpreadsheetApp.openById(newId);
-
-      if (email) {
-        try { newFile.addEditor(email); } catch(e) { /* ignore share errors */ }
+      
+      // Skip if no template name in Column A
+      if (!rowData[0]) {
+        sheetsSkipped++;
+        continue;
       }
-
-      // Write URL, status, created date
-      var newUrl = newSS.getUrl();
-      master.getRange(r + 1, 4).setValue(newUrl); // D
-      master.getRange(r + 1, 5).setValue("Sheet created successfully"); // E
-      master.getRange(r + 1, 6).setValue(new Date()); // F
-
-      // Detect the likely tasks sheet name in child and insert formulas (won't overwrite existing formulas)
-      var tasksSheetName = detectTasksSheetName(newSS);
-      setFormulasForRow(master, r + 1, tasksSheetName, false /*force*/);
-
-    } catch (err) {
-      master.getRange(r + 1, 5).setValue("Error: " + err.message); // E
+      
+      const result = processSheetCreation(rowIndex, rowData);
+      
+      if (result.success) {
+        sheetsCreated++;
+      } else {
+        errors++;
+      }
+      
+      // Add small delay to prevent hitting quotas
+      Utilities.sleep(100);
     }
+    
+    // Show summary popup
+    showBulkCreationSummary(sheetsCreated, sheetsSkipped, errors);
+    
+  } catch (error) {
+    console.error('Error in createSheets:', error);
+    SpreadsheetApp.getUi().alert('Unexpected error: ' + error.toString());
   }
 }
 
 /**
- * Insert formulas for every row that has a Sheet URL (without overwriting existing formulas unless forced).
- * Default: does not overwrite.
- * To force overwrite call updateMetrics(true) or use menu item Force Reinsert Formulas.
+ * Shows the bulk creation summary popup
+ * @param {number} sheetsCreated - Number of sheets successfully created
+ * @param {number} sheetsSkipped - Number of sheets skipped
+ * @param {number} errors - Number of errors encountered
  */
-function updateMetrics(force) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var master = ss.getSheetByName("Sheets_Master");
-  if (!master) { SpreadsheetApp.getUi().alert("Missing Sheets_Master"); return; }
+function showBulkCreationSummary(sheetsCreated, sheetsSkipped, errors) {
+  const ui = SpreadsheetApp.getUi();
+  
+  const message = 'Bulk Creation Summary\\n' +
+                 '-----------------------\\n' +
+                 'Sheets Created: ' + sheetsCreated + '\\n' +
+                 'Sheets Skipped: ' + sheetsSkipped + '\\n' +
+                 'Errors: ' + errors;
+  
+  ui.alert('Bulk Creation Complete', message, ui.ButtonSet.OK);
+}
 
-  ensureHeaders(master);
+// =============================================================================
+// CORE SHEET PROCESSING
+// =============================================================================
 
-  var mData = master.getDataRange().getValues();
-  for (var r = 1; r < mData.length; r++) {
-    var url = (mData[r][3] || "").toString().trim();
-    if (!url) continue;
-    try {
-      var id = extractFileId(url);
-      var childSS = SpreadsheetApp.openById(id);
-      var tasksSheetName = detectTasksSheetName(childSS);
-      setFormulasForRow(master, r + 1, tasksSheetName, !!force);
-    } catch (err) {
-      master.getRange(r + 1, 5).setValue("Error: " + err.message);
+/**
+ * Processes the creation of a single sheet for a given row
+ * @param {number} rowIndex - The row number in the Sheets_Master sheet
+ * @param {Array} rowData - The data from the row
+ * @return {Object} Result object with success flag and details
+ */
+function processSheetCreation(rowIndex, rowData) {
+  try {
+    const templateName = rowData[0]; // Column A
+    const sharedWith = rowData[1];   // Column B
+    const emailId = rowData[2];      // Column C
+    
+    // Get template URL from Template_List sheet
+    const templateUrl = getTemplateUrl(templateName);
+    if (!templateUrl) {
+      updateRowStatus(rowIndex, 'Error: Template not found in Template_List');
+      return { success: false, error: 'Template "' + templateName + '" not found in Template_List sheet' };
     }
+    
+    // Create the sheet copy
+    const sheetResult = createSheetCopy(templateName, sharedWith, templateUrl);
+    if (!sheetResult.success) {
+      updateRowStatus(rowIndex, 'Error: ' + sheetResult.error);
+      return sheetResult;
+    }
+    
+    // Update Task Master row with results
+    updateTaskMasterRow(rowIndex, sheetResult.sheetUrl);
+    
+    // Share with email if provided
+    if (emailId && emailId.includes('@')) {
+      shareSheetWithUser(sheetResult.sheetId, emailId);
+    }
+    
+    // Insert IMPORTRANGE formulas
+    insertImportRangeFormulas(rowIndex, sheetResult.sheetUrl);
+    
+    return {
+      success: true,
+      sheetName: sheetResult.sheetName,
+      sheetUrl: sheetResult.sheetUrl,
+      sheetId: sheetResult.sheetId
+    };
+    
+  } catch (error) {
+    console.error('Error in processSheetCreation:', error);
+    updateRowStatus(rowIndex, 'Error: ' + error.toString());
+    return { success: false, error: error.toString() };
   }
 }
 
-/** wrapper for menu to force reinsert */
-function forceReinsertFormulas() {
-  updateMetrics(true);
-}
-
-/** Sidebar view */
-function showDashboardSidebar() {
-  var html = HtmlService.createHtmlOutputFromFile("dashboard")
-    .setTitle("Task Dashboard")
-    .setWidth(1100)
-    .setHeight(800);
-  SpreadsheetApp.getUi().showSidebar(html);
+/**
+ * Creates a copy of the template sheet
+ * @param {string} templateName - Name of the template
+ * @param {string} sharedWith - Name of the person to share with
+ * @param {string} templateUrl - URL of the template sheet
+ * @return {Object} Result object with sheet details
+ */
+function createSheetCopy(templateName, sharedWith, templateUrl) {
+  try {
+    // Extract file ID from template URL
+    const templateId = extractFileIdFromUrl(templateUrl);
+    const templateFile = DriveApp.getFileById(templateId);
+    
+    // Generate new sheet name
+    const firstWordTemplate = templateName.split(' ')[0] || 'Template';
+    const firstWordShared = (sharedWith.split(' ')[0] || 'User').split('@')[0];
+    const sheetName = firstWordTemplate + '_sheet_' + firstWordShared;
+    
+    // Get or create Created_Sheets folder
+    const createdSheetsFolder = getOrCreateFolder('Created_Sheets');
+    
+    // Create the copy
+    const newFile = templateFile.makeCopy(sheetName, createdSheetsFolder);
+    const newSpreadsheet = SpreadsheetApp.openById(newFile.getId());
+    
+    return {
+      success: true,
+      sheetName: sheetName,
+      sheetUrl: newSpreadsheet.getUrl(),
+      sheetId: newFile.getId(),
+      spreadsheet: newSpreadsheet
+    };
+    
+  } catch (error) {
+    console.error('Error creating sheet copy:', error);
+    return { success: false, error: error.toString() };
+  }
 }
 
 /**
- * Responds to dashboard.html client with the evaluated values from Sheets_Master.
- * Returns array of objects for rendering.
+ * Updates the Sheets_Master row with sheet creation results
+ * @param {number} rowIndex - Row number to update
+ * @param {string} sheetUrl - URL of the created sheet
  */
-function getMasterData() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var master = ss.getSheetByName("Sheets_Master");
-  if (!master) return [];
-  var data = master.getDataRange().getValues();
-  var rows = [];
-  for (var r = 1; r < data.length; r++) {
-    if (!data[r][0]) continue; // skip blank template name
-    rows.push({
-      template: data[r][0],
-      sharedWith: data[r][1],
-      email: data[r][2],
-      url: data[r][3],
-      status: data[r][4],
-      createdAt: data[r][5],
-      total: safeNumber(data[r][6]),
-      completed: safeNumber(data[r][7]),
-      pending: safeNumber(data[r][8]),
-      overdue: safeNumber(data[r][9]),
-      progress: safeNumber(data[r][10])
+function updateTaskMasterRow(rowIndex, sheetUrl) {
+  try {
+    const masterSheet = getSheetsMasterSheet();
+    const currentDate = new Date();
+    const formattedDate = Utilities.formatDate(currentDate, Session.getScriptTimeZone(), 'dd-MMM-yy');
+    
+    // Update columns D, E, F
+    masterSheet.getRange(rowIndex, 4).setValue(sheetUrl);                    // Column D: Sheet URL
+    masterSheet.getRange(rowIndex, 5).setValue('Sheet created successfully'); // Column E: Status
+    masterSheet.getRange(rowIndex, 6).setValue(formattedDate);               // Column F: Date Created
+    
+  } catch (error) {
+    console.error('Error updating Task Master row:', error);
+    throw error;
+  }
+}
+
+/**
+ * Updates only the status column (E) for a row
+ * @param {number} rowIndex - Row number to update
+ * @param {string} status - Status message to set
+ */
+function updateRowStatus(rowIndex, status) {
+  try {
+    const masterSheet = getSheetsMasterSheet();
+    masterSheet.getRange(rowIndex, 5).setValue(status); // Column E
+  } catch (error) {
+    console.error('Error updating row status:', error);
+  }
+}
+
+/**
+ * Inserts IMPORTRANGE formulas into columns G-L for the specified row
+ * @param {number} rowIndex - Row number to update
+ * @param {string} sheetUrl - URL of the target sheet
+ */
+function insertImportRangeFormulas(rowIndex, sheetUrl) {
+  try {
+    const masterSheet = getSheetsMasterSheet();
+    const cellRef = 'D' + rowIndex; // Reference to the URL cell
+    
+    // Define formulas as per specifications
+    const formulas = {
+      G: `=IFERROR(SUMPRODUCT(--(LEN(IMPORTRANGE(${cellRef},"'Tasks'!B2:B1000"))>0)),0)`,
+      H: `=IFERROR(SUM(COUNTIF(IMPORTRANGE(${cellRef},"'Tasks'!G2:G"),{"Completed","Done","Closed","Complete"})),0)`,
+      I: `=IF(G${rowIndex}=0,0, G${rowIndex}-H${rowIndex})`,
+      J: `=IFERROR(COUNTIFS(IMPORTRANGE(${cellRef},"'Tasks'!E2:E"),"<"&TODAY(),IMPORTRANGE(${cellRef},"'Tasks'!G2:G"),"<>Completed"),0)`,
+      K: `=IF(G${rowIndex}=0,0,ROUND(H${rowIndex}/G${rowIndex}*100,0))`
+    };
+    
+    // Insert each formula
+    Object.keys(formulas).forEach(col => {
+      const colIndex = col.charCodeAt(0) - 'A'.charCodeAt(0) + 1;
+      masterSheet.getRange(rowIndex, colIndex).setFormula(formulas[col]);
     });
+    
+  } catch (error) {
+    console.error('Error inserting IMPORTRANGE formulas:', error);
+    throw error;
   }
-  return rows;
 }
 
-/* ---------------- Helpers ---------------- */
+// =============================================================================
+// HELPER FUNCTIONS
+// =============================================================================
 
-function setFormulasForRow(masterSheet, rowIndex, tasksSheetName, force) {
-  // masterSheet: Sheet object
-  // rowIndex: 1-based
-  // tasksSheetName: name inside child sheet
-  // force: if true, overwrite any existing formula/value in G:K
+/**
+ * Gets the Sheets_Master sheet, creates it if it doesn't exist
+ * @return {Sheet} The Sheets_Master sheet
+ */
+function getSheetsMasterSheet() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = spreadsheet.getSheetByName('Sheets_Master');
+  
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet('Sheets_Master');
+  }
+  
+  return sheet;
+}
 
-  if (!tasksSheetName) tasksSheetName = "Tasks";
-  var safeName = tasksSheetName.replace(/'/g, "\\'"); // escape single quotes in sheet name
 
-  // ranges inside child sheet
-  var titleRange = "'" + safeName + "'!B2:B";  // Title column (B)
-  var statusRange = "'" + safeName + "'!G2:G"; // Status column (G)
-  var plannedRange = "'" + safeName + "'!E2:E"; // Planned date (E)
-  var estimatedRange = "'" + safeName + "'!K2:K"; // Estimated? (K)
-
-  var dRef = "D" + rowIndex; // cell in master containing child URL
-
-  // Formulas (they rely on IMPORTRANGE referencing the child URL cell D#)
-  var fTotal = '=IFERROR(COUNTA(IMPORTRANGE(' + dRef + ',"' + titleRange + '")),0)';
-  var fCompleted = '=IFERROR(SUM(COUNTIF(IMPORTRANGE(' + dRef + ',"' + statusRange + '"),{"Completed","Done","Closed","Complete"})),0)';
-  var fOverdue = '=IFERROR(COUNTIFS(IMPORTRANGE(' + dRef + ',"' + plannedRange + '"),"<"&TODAY(),IMPORTRANGE(' + dRef + ',"' + statusRange + '"),"<>Completed"),0)';
-  var fPending = '=IF(' + 'G' + rowIndex + '=0,0, G' + rowIndex + '-H' + rowIndex + '-J' + rowIndex + ')';
-  var fProgress = '=IF(G' + rowIndex + '=0,0,ROUND(H' + rowIndex + '/G' + rowIndex + '*100,0))';
-
-  var colMap = {
-    totalCol: 7,     // G
-    completedCol: 8, // H
-    pendingCol: 9,   // I
-    overdueCol: 10,  // J
-    progressCol: 11  // K
-  };
-
-  // helper to set formula only if blank or force = true
-  function setIfBlankOrForce(r, c, formula) {
-    var cell = masterSheet.getRange(r, c);
-    var existingFormula = cell.getFormula();
-    var existingValue = cell.getValue();
-
-    if (force) {
-      cell.setFormula(formula);
-    } else {
-      if (!existingFormula && (existingValue === "" || existingValue === null)) {
-        cell.setFormula(formula);
-      }
-      // if existingFormula present, leave it alone
-      // if existingValue present but no formula, do not overwrite (user prefers formulas)
+/**
+ * Gets the template URL from the Template_List sheet
+ * @param {string} templateName - Name of the template to find
+ * @return {string|null} Template URL or null if not found
+ */
+function getTemplateUrl(templateName) {
+  try {
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const templateSheet = spreadsheet.getSheetByName('Template_List');
+    
+    if (!templateSheet) {
+      console.error('Template_List sheet not found');
+      return null;
     }
+    
+    const data = templateSheet.getDataRange().getValues();
+    
+    for (let i = 1; i < data.length; i++) { // Skip header row
+      if (data[i][0] && data[i][0].toString().trim() === templateName.trim()) {
+        return data[i][1]; // Return URL from column B
+      }
+    }
+    
+    return null;
+    
+  } catch (error) {
+    console.error('Error getting template URL:', error);
+    return null;
   }
-
-  setIfBlankOrForce(rowIndex, colMap.totalCol, fTotal);
-  setIfBlankOrForce(rowIndex, colMap.completedCol, fCompleted);
-  setIfBlankOrForce(rowIndex, colMap.overdueCol, fOverdue);
-  setIfBlankOrForce(rowIndex, colMap.pendingCol, fPending);
-  setIfBlankOrForce(rowIndex, colMap.progressCol, fProgress);
 }
 
-/** Detects the likely tasks sheet inside a child spreadsheet */
-function detectTasksSheetName(childSS) {
-  var sheets = childSS.getSheets();
-  var patterns = [/sr\.?\s*no/i, /\btask\b/i, /\bidea\b/i, /\bstatus\b/i, /\ballocated\b/i, /\bplanned\b/i];
-  for (var i = 0; i < sheets.length; i++) {
-    var sh = sheets[i];
+/**
+ * Extracts file ID from Google Sheets URL
+ * @param {string} url - Google Sheets URL
+ * @return {string} File ID
+ */
+function extractFileIdFromUrl(url) {
+  // Try multiple patterns to extract Google Sheets ID
+  
+  // Pattern 1: /spreadsheets/d/{ID}/
+  let match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (match) {
+    return match[1];
+  }
+  
+  // Pattern 2: /open?id={ID}
+  match = url.match(/[?&]id=([a-zA-Z0-9-_]+)/);
+  if (match) {
+    return match[1];
+  }
+  
+  // Pattern 3: Look for any Google Drive file ID pattern (44 characters)
+  match = url.match(/[a-zA-Z0-9-_]{25,}/);
+  if (match) {
+    return match[0];
+  }
+  
+  throw new Error('Invalid Google Sheets URL: ' + url);
+}
+
+/**
+ * Gets or creates a folder with the specified name
+ * @param {string} folderName - Name of the folder
+ * @return {Folder} The folder object
+ */
+function getOrCreateFolder(folderName) {
+  try {
+    // Try to find existing folder in the same location as the current spreadsheet
+    const currentFile = DriveApp.getFileById(SpreadsheetApp.getActiveSpreadsheet().getId());
+    const parentFolders = currentFile.getParents();
+    
+    let parentFolder = DriveApp.getRootFolder();
+    if (parentFolders.hasNext()) {
+      parentFolder = parentFolders.next();
+    }
+    
+    const existingFolders = parentFolder.getFoldersByName(folderName);
+    if (existingFolders.hasNext()) {
+      return existingFolders.next();
+    }
+    
+    // Create new folder
+    return parentFolder.createFolder(folderName);
+    
+  } catch (error) {
+    console.error('Error getting/creating folder:', error);
+    throw error;
+  }
+}
+
+/**
+ * Shares the created sheet with the specified email
+ * @param {string} fileId - ID of the file to share
+ * @param {string} email - Email address to share with
+ */
+function shareSheetWithUser(fileId, email) {
+  try {
+    const file = DriveApp.getFileById(fileId);
+    file.addEditor(email);
+  } catch (error) {
+    console.error('Error sharing sheet with user:', error);
+    // Don't throw error - sharing failure shouldn't stop the process
+  }
+}
+
+// =============================================================================
+// ENHANCED DASHBOARD
+// =============================================================================
+
+/**
+ * Opens the enhanced dashboard in a new browser window
+ */
+function openDashboard() {
+  try {
+    console.log('Opening enhanced dashboard...');
+    
+    // Get data from Sheets_Master sheet
+    const dashboardData = getDashboardData();
+    
+    // Create HTML template
+    const htmlTemplate = HtmlService.createTemplateFromFile('dashboard');
+    htmlTemplate.dashboardData = dashboardData;
+    
+    // Create output for new window with visible URL
+    const htmlOutput = htmlTemplate.evaluate()
+      .setTitle('Task Management Dashboard')
+      .setWidth(1400)
+      .setHeight(900)
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    
+    // Open in new window - this will open as a separate browser window with URL visible
+    SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Task Management Dashboard');
+    
+    // Also provide option to open as web app (user needs to deploy)
     try {
-      var header = sh.getRange(1, 1, 1, Math.min(20, sh.getLastColumn())).getValues()[0].join(" ");
-      for (var p = 0; p < patterns.length; p++) {
-        if (patterns[p].test(header)) return sh.getName();
+      const scriptUrl = ScriptApp.getService().getUrl();
+      if (scriptUrl) {
+        SpreadsheetApp.getUi().alert('Dashboard opened!\\n\\nFor full browser window with URL bar, deploy this script as a Web App and access: ' + scriptUrl);
       }
     } catch (e) {
-      // ignore read errors and try next
+      // Ignore if web app not deployed
     }
+    
+  } catch (error) {
+    console.error('Error opening dashboard:', error);
+    SpreadsheetApp.getUi().alert('Error opening dashboard: ' + error.toString());
   }
-  return sheets.length ? sheets[0].getName() : "Tasks";
 }
 
-function extractFileId(url) {
-  var m = (url || "").match(/[-\w]{25,}/);
-  if (!m) throw new Error("Cannot extract file ID from URL: " + url);
-  return m[0];
+/**
+ * Gets dashboard data directly from Sheets_Master columns G-L
+ * @return {Array} Array of dashboard card data
+ */
+function getDashboardData() {
+  try {
+    const masterSheet = getSheetsMasterSheet();
+    const lastRow = masterSheet.getLastRow();
+    
+    if (lastRow < 2) {
+      return [];
+    }
+    
+    // Get all data from columns A-L
+    const data = masterSheet.getRange(2, 1, lastRow - 1, 12).getValues();
+    const result = [];
+    
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      
+      // Skip rows without template name or sheet URL
+      if (!row[0] || !row[3]) continue;
+      
+      // Create card title from Column A and B
+      const templateName = row[0].toString();
+      const sharedWith = row[1].toString();
+      const firstWordTemplate = templateName.split(' ')[0] || 'Template';
+      const firstWordShared = (sharedWith.split(' ')[0] || 'User').split('@')[0];
+      const cardTitle = firstWordTemplate + ' Sheet ' + firstWordShared;
+      
+      // Extract values directly from columns F-L (updated to include Date Created)
+      const cardData = {
+        cardTitle: cardTitle,
+        templateName: templateName,
+        sharedWith: sharedWith,
+        sheetUrl: row[3],                    // Column D
+        dateCreated: row[5] || '',           // Column F
+        totalTasks: row[6] || 0,            // Column G
+        completedTasks: row[7] || 0,        // Column H  
+        estimated: row[8] || 0,             // Column I
+        onTrack: row[9] || 0,               // Column J
+        overdueTasks: row[10] || 0,         // Column K
+        upcoming: row[11] || 0,             // Column L
+        progressPercent: row[7] && row[6] ? Math.round((row[7]/row[6])*100) : 0, // Calculate progress
+        overdueTaskDetails: [],             // Will be populated below
+        hasError: false,
+        errorMessage: ''
+      };
+      
+      // Fetch overdue task details from individual sheet if overdue tasks > 0
+      if (cardData.overdueTasks > 0 && cardData.sheetUrl) {
+        try {
+          const overdueDetails = getOverdueTaskDetails(cardData.sheetUrl);
+          cardData.overdueTaskDetails = overdueDetails.tasks;
+          cardData.hasError = overdueDetails.hasError;
+          cardData.errorMessage = overdueDetails.errorMessage;
+        } catch (error) {
+          console.error(`Error fetching overdue details for ${cardData.cardTitle}:`, error);
+          cardData.hasError = true;
+          cardData.errorMessage = `Failed to fetch overdue task details: ${error.toString()}`;
+        }
+      }
+      
+      result.push(cardData);
+    }
+    
+    return result;
+    
+  } catch (error) {
+    console.error('Error getting dashboard data:', error);
+    return [];
+  }
 }
 
-function getOrCreateSubFolder(parentFolder, name) {
-  var it = parentFolder.getFoldersByName(name);
-  return it.hasNext() ? it.next() : parentFolder.createFolder(name);
+/**
+ * Fetches overdue task details from individual sheet's Dashboard tab
+ * @param {string} sheetUrl - URL of the individual sheet
+ * @return {Object} Object containing tasks array and error information
+ */
+function getOverdueTaskDetails(sheetUrl) {
+  try {
+    // Extract file ID from the URL
+    const fileId = extractFileIdFromUrl(sheetUrl);
+    
+    // Open the spreadsheet
+    const spreadsheet = SpreadsheetApp.openById(fileId);
+    
+    // Try to get the Dashboard sheet
+    let dashboardSheet;
+    try {
+      dashboardSheet = spreadsheet.getSheetByName('Dashboard');
+    } catch (error) {
+      // If Dashboard sheet doesn't exist, return empty result
+      console.log(`Dashboard sheet not found in ${sheetUrl}`);
+      return {
+        tasks: [],
+        hasError: false,
+        errorMessage: 'Dashboard sheet not found'
+      };
+    }
+    
+    if (!dashboardSheet) {
+      console.log(`Dashboard sheet not found in ${sheetUrl}`);
+      return {
+        tasks: [],
+        hasError: false,
+        errorMessage: 'Dashboard sheet not found'
+      };
+    }
+    
+    // Get data from rows 11-14 (header + 3 data rows)
+    const overdueRange = dashboardSheet.getRange('A11:B14');
+    const overdueData = overdueRange.getValues();
+    
+    // Skip header row (row 11), process rows 12-14
+    const tasks = [];
+    for (let i = 1; i < overdueData.length; i++) {
+      const row = overdueData[i];
+      if (row[0] && row[0].toString().trim() !== '') {
+        tasks.push({
+          taskTitle: row[0].toString(),
+          delayDays: row[1] || 0
+        });
+      }
+    }
+    
+    // Limit to top 3 tasks
+    const topThreeTasks = tasks.slice(0, 3);
+    
+    console.log(`Fetched ${topThreeTasks.length} overdue tasks from ${sheetUrl}`);
+    
+    return {
+      tasks: topThreeTasks,
+      hasError: false,
+      errorMessage: ''
+    };
+    
+  } catch (error) {
+    console.error(`Error accessing sheet ${sheetUrl}:`, error);
+    return {
+      tasks: [],
+      hasError: true,
+      errorMessage: `Unable to access sheet: ${error.toString()}`
+    };
+  }
 }
 
-function ensureHeaders(master) {
-  // Ensure E/F and G:K headers exist. G:K are always set (safe to overwrite header row)
-  var lastCol = Math.max(master.getLastColumn(), 11);
-  var headers = master.getRange(1, 1, 1, lastCol).getValues()[0];
+// =============================================================================
+// UTILITY FUNCTIONS
+// =============================================================================
 
-  if (!headers[4]) master.getRange(1, 5).setValue("Sheet Status"); // E
-  if (!headers[5]) master.getRange(1, 6).setValue("Date Created"); // F
-
-  master.getRange(1, 7, 1, 5).setValues([["Total tasks","Completed tasks","Pending tasks","Overdue tasks","Progress %"]]); // G:K
-}
-
-function safeNumber(v) {
-  if (v === null || v === undefined || v === "") return 0;
-  if (typeof v === "number") return v;
-  var s = String(v).replace(/[^0-9.\-]/g, "");
-  var n = parseFloat(s);
-  return isNaN(n) ? 0 : n;
+/**
+ * Include function for HTML templates
+ * @param {string} filename - Name of the HTML file to include
+ * @return {string} Content of the HTML file
+ */
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }

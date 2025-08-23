@@ -4,15 +4,26 @@
 This document outlines comprehensive test scenarios to validate all functionality of the Task & Idea Manager system.
 
 ## Test Data Files
-- `test-data.csv` - Standard test data with realistic scenarios
-- `test-data-edge-cases.csv` - Edge cases and boundary conditions
+- `test-data.csv` - Standard task test data with realistic scenarios (25 tasks)
+- `test-data-ideas.csv` - Standard idea test data with realistic scenarios (25 ideas)
+- `test-data-edge-cases.csv` - Edge cases and boundary conditions (30 tasks)
 
 ## Testing Instructions
 
 ### 1. Import Test Data
 1. Create a new Google Sheet
-2. Import either `test-data.csv` or `test-data-edge-cases.csv`
-3. Ensure column headers match: ID, Task Title, Task Description, Task Type, Planned Date, Actual Date, Status, Priority, Health, Task Dependencies, Confirmed
+2. Import one of the test data files:
+   - `test-data.csv` - For standard task testing
+   - `test-data-ideas.csv` - For idea template testing  
+   - `test-data-edge-cases.csv` - For edge case testing
+3. Ensure column headers match the correct format:
+   
+   **For Task Sheets:**
+   - Sr. No, Task Title, Task Description, Allocated Date, Planned Completion Date, Actual Completion Date, Status
+   
+   **For Idea Sheets:**
+   - Sr. No, Idea Title, Idea Description, Idea Date, Planned Implementation Date, Actual Implementation Date, Status
+
 4. Use the Task Manager to create a new template pointing to this sheet
 
 ### 2. Total Tasks Calculation Tests
@@ -20,44 +31,51 @@ This document outlines comprehensive test scenarios to validate all functionalit
 #### Scenario A: Basic Count Verification
 - **Expected**: Total tasks should equal number of data rows (excluding header)
 - **Test Data**: Use `test-data.csv` (25 tasks)
-- **Verification**: Column G should show 25, not 26
+- **Formula**: `SUMPRODUCT(--(LEN(IMPORTRANGE(URL,"B2:B1000"))>0))` - counts non-empty Task Titles from row 2 onwards
+- **Verification**: Column G should show 25
 
-#### Scenario B: Empty Sheet Test
-- **Setup**: Create sheet with headers only, no data rows
+#### Scenario B: Empty Sheet Test (New Template)
+- **Setup**: Newly created sheet with headers only, no data rows
 - **Expected**: Total tasks = 0
-- **Verification**: Formula should handle empty ranges gracefully
+- **Issue Fixed**: Previous formula was counting header row or empty cells with spaces
+- **New Formula**: `SUMPRODUCT(--(LEN(IMPORTRANGE(URL,"B2:B1000"))>0))` only counts cells with actual content
+- **Verification**: Newly created sheets should show 0 total tasks, not 1
 
 #### Scenario C: Mixed Data Test
 - **Setup**: Sheet with some empty rows between data
-- **Expected**: Count only non-empty task titles
+- **Expected**: Count only non-empty task titles (column B)
 - **Verification**: COUNTA should ignore empty cells in B2:B range
 
 ### 3. Status-Based Counting Tests
 
 #### Completed Tasks (Column H)
+- **Formula**: `SUM(COUNTIF(IMPORTRANGE(URL,"G:G"),{"Completed","Done","Closed","Complete"}))`
 - **Test Cases**:
-  - Standard "Completed" status
+  - Standard "Completed" status (column G)
   - Alternative completion statuses: "Done", "Closed", "Complete"
   - Case sensitivity validation
 - **Expected Results**:
-  - `test-data.csv`: 4 completed tasks (IDs: 1, 2, 7, 16)
-  - `test-data-edge-cases.csv`: 6 completed tasks
+  - `test-data.csv`: 4 completed tasks (rows 1, 2, 7, 16)
+  - `test-data-edge-cases.csv`: 8 completed tasks
 
 #### Pending Tasks (Column I)
-- **Calculation**: Total - Completed - Overdue
+- **Formula**: `G${rowIndex}-H${rowIndex}` (Total - Completed)
 - **Test Cases**:
   - "Pending" status tasks
   - "In Progress" status tasks
-- **Expected**: Should dynamically calculate based on other columns
+  - Any non-completed status
+- **Expected**: Should dynamically calculate: Total tasks minus completed tasks
 
 #### Overdue Tasks (Column J)
-- **Criteria**: Planned Date < TODAY() AND Status != "Completed"
+- **Formula**: `COUNTIFS(IMPORTRANGE(URL,"E:E"),"<"&TODAY(),IMPORTRANGE(URL,"G:G"),"<>Completed")`
+- **Criteria**: Planned Completion Date (column E) < TODAY() AND Status (column G) != "Completed"
 - **Test Cases**:
   - Tasks with past planned dates
   - Tasks without planned dates (should not count as overdue)
   - Weekend and holiday dates
 - **Expected Results**:
-  - `test-data.csv`: 2 overdue tasks (IDs: 8, 15, 23)
+  - `test-data.csv`: Tasks with past planned completion dates that aren't completed
+  - `test-data-edge-cases.csv`: Row 4 (Past due date test)
 
 ### 4. Date Handling Tests
 
@@ -201,17 +219,22 @@ This document outlines comprehensive test scenarios to validate all functionalit
 
 ### test-data.csv (25 tasks)
 - Total Tasks: 25
-- Completed: 4
-- In Progress: 4  
-- Pending: 15
-- Overdue: 2
+- Completed: 4 (Completed status)
+- Pending: 21 (Total - Completed)
+- Overdue: Depends on current date vs planned completion dates
+
+### test-data-ideas.csv (25 ideas)
+- Total Ideas: 25
+- Implemented: 4 (Implemented status)
+- Under Review: 11 
+- Approved: 10
+- Overdue: Depends on current date vs planned implementation dates
 
 ### test-data-edge-cases.csv (30 tasks)
 - Total Tasks: 30
-- Completed: 6
-- In Progress: 4
-- Pending: 18
-- Overdue: 2
+- Completed: 8 (Completed, Done, Closed, Complete statuses)
+- Pending: 22 (Total - Completed)  
+- Overdue: 1 (Row 4 - Past due date test)
 
 ## Troubleshooting Guide
 
