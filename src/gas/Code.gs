@@ -20,6 +20,9 @@ function onOpen() {
     .addItem('Create Sheets', 'createSheets')
     .addSeparator()
     .addItem('Open Dashboard', 'openDashboard')
+    .addItem('Open Fast Dashboard', 'openFastDashboard')
+    .addItem('Generate Standalone Dashboard', 'generateStandaloneDashboard')
+    .addItem('Get Dashboard URLs', 'showDashboardUrls')
     .addToUi();
 }
 
@@ -28,17 +31,76 @@ function onOpen() {
  * Deploy this script as a Web App to get a direct URL to the dashboard
  */
 function doGet() {
+  console.log('=== doGet() START - Full Dashboard ===');
+  
   try {
-    const dashboardData = getDashboardData();
-    const htmlTemplate = HtmlService.createTemplateFromFile('dashboard');
-    htmlTemplate.dashboardData = dashboardData;
+    console.log('Step 1: Starting doGet function for full dashboard');
     
-    return htmlTemplate.evaluate()
-      .setTitle('Task Management Dashboard')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    console.log('Step 2: Getting full dashboard data (with overdue details)');
+    const dashboardData = getDashboardData();
+    console.log('Step 3: Dashboard data retrieved, length:', dashboardData ? dashboardData.length : 'null');
+    
+    console.log('Step 4: Creating HTML template from dashboard file');
+    const htmlTemplate = HtmlService.createTemplateFromFile('dashboard');
+    console.log('Step 5: HTML template created successfully');
+    
+    console.log('Step 6: Assigning dashboard data to template');
+    htmlTemplate.dashboardData = dashboardData;
+    console.log('Step 7: Data assigned to template');
+    
+    console.log('Step 8: Evaluating template');
+    const htmlOutput = htmlTemplate.evaluate();
+    console.log('Step 9: Template evaluated successfully');
+    
+    console.log('Step 10: Setting title and options');
+    htmlOutput.setTitle('Task Management Dashboard');
+    htmlOutput.setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    console.log('Step 11: Options configured');
+    
+    console.log('Step 12: Returning HTML output');
+    console.log('=== doGet() SUCCESS - Full Dashboard ===');
+    
+    return htmlOutput;
       
   } catch (error) {
-    return HtmlService.createHtmlOutput('<h1>Error loading dashboard</h1><p>' + error.toString() + '</p>');
+    console.error('=== doGet() ERROR ===');
+    console.error('Error details:', error.toString());
+    console.error('Error stack:', error.stack);
+    
+    // Return detailed error page
+    return HtmlService.createHtmlOutput(`
+      <html>
+        <head>
+          <title>Dashboard Error</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+            .error-container { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            .error-title { color: #d32f2f; font-size: 24px; margin-bottom: 20px; }
+            .error-details { background: #f8f8f8; padding: 15px; border-radius: 4px; font-family: monospace; white-space: pre-wrap; }
+            .success-note { background: #e8f5e8; padding: 15px; border-radius: 4px; color: #2e7d32; margin-bottom: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="error-container">
+            <div class="success-note">
+              ✅ Good News: Web App deployment is working! You're seeing this error page, which means the deployment infrastructure is functional.
+            </div>
+            <h1 class="error-title">Dashboard Loading Error</h1>
+            <p><strong>Error Message:</strong></p>
+            <div class="error-details">${error.toString()}</div>
+            <p><strong>Error Stack:</strong></p>
+            <div class="error-details">${error.stack || 'No stack trace available'}</div>
+            <p><strong>Time:</strong> ${new Date().toLocaleString()}</p>
+            <p><strong>Next Steps:</strong></p>
+            <ul>
+              <li>Check the Google Apps Script execution logs</li>
+              <li>Verify the dashboard.html file exists</li>
+              <li>Ensure getFastDashboardData() function works</li>
+            </ul>
+          </div>
+        </body>
+      </html>
+    `);
   }
 }
 
@@ -426,6 +488,36 @@ function shareSheetWithUser(fileId, email) {
 // =============================================================================
 
 /**
+ * Opens the fast dashboard (menu-safe version without overdue task details)
+ */
+function openFastDashboard() {
+  try {
+    console.log('Opening fast dashboard...');
+    
+    // Get fast data (no overdue task details)
+    const dashboardData = getFastDashboardData();
+    
+    // Create HTML template
+    const htmlTemplate = HtmlService.createTemplateFromFile('dashboard');
+    htmlTemplate.dashboardData = dashboardData;
+    
+    // Create output for modal dialog
+    const htmlOutput = htmlTemplate.evaluate()
+      .setTitle('Task Management Dashboard (Fast)')
+      .setWidth(1400)
+      .setHeight(900)
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    
+    // Show modal dialog
+    SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Task Management Dashboard (Fast)');
+    
+  } catch (error) {
+    console.error('Error opening fast dashboard:', error);
+    SpreadsheetApp.getUi().alert('Error opening fast dashboard: ' + error.toString());
+  }
+}
+
+/**
  * Opens the enhanced dashboard in a new browser window
  */
 function openDashboard() {
@@ -462,6 +554,80 @@ function openDashboard() {
   } catch (error) {
     console.error('Error opening dashboard:', error);
     SpreadsheetApp.getUi().alert('Error opening dashboard: ' + error.toString());
+  }
+}
+
+/**
+ * Gets fast dashboard data for web app (skips overdue task details)
+ * @return {Array} Array of dashboard card data
+ */
+function getFastDashboardData() {
+  console.log('=== getFastDashboardData() START ===');
+  
+  try {
+    console.log('Fast Data Step 1: Getting master sheet');
+    const masterSheet = getSheetsMasterSheet();
+    console.log('Fast Data Step 2: Master sheet retrieved');
+    
+    const lastRow = masterSheet.getLastRow();
+    console.log('Fast Data Step 3: Last row:', lastRow);
+    
+    if (lastRow < 2) {
+      console.log('Fast Data Step 4: No data rows, returning empty array');
+      return [];
+    }
+    
+    // Get all data from columns A-L
+    console.log('Fast Data Step 5: Getting data range from A2 to L' + lastRow);
+    const data = masterSheet.getRange(2, 1, lastRow - 1, 12).getValues();
+    console.log('Fast Data Step 6: Data retrieved, rows:', data.length);
+    
+    const result = [];
+    
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      
+      // Skip rows without template name or sheet URL
+      if (!row[0] || !row[3]) continue;
+      
+      // Create card title from Column A and B
+      const templateName = row[0].toString();
+      const sharedWith = row[1].toString();
+      const firstWordTemplate = templateName.split(' ')[0] || 'Template';
+      const firstWordShared = (sharedWith.split(' ')[0] || 'User').split('@')[0];
+      const cardTitle = firstWordTemplate + ' Sheet ' + firstWordShared;
+      
+      // Extract values directly from columns F-L (NO overdue task details fetching)
+      const cardData = {
+        cardTitle: cardTitle,
+        templateName: templateName,
+        sharedWith: sharedWith,
+        sheetUrl: row[3],                    // Column D
+        dateCreated: row[5] || '',           // Column F
+        totalTasks: row[6] || 0,            // Column G
+        completedTasks: row[7] || 0,        // Column H  
+        estimated: row[8] || 0,             // Column I
+        onTrack: row[9] || 0,               // Column J
+        overdueTasks: row[10] || 0,         // Column K
+        upcoming: row[11] || 0,             // Column L
+        progressPercent: row[7] && row[6] ? Math.round((row[7]/row[6])*100) : 0, // Calculate progress
+        overdueTaskDetails: [],             // Empty for fast loading
+        hasError: false,
+        errorMessage: ''
+      };
+      
+      result.push(cardData);
+    }
+    
+    console.log('Fast Data Step 7: Processed', result.length, 'cards');
+    console.log('=== getFastDashboardData() SUCCESS ===');
+    return result;
+    
+  } catch (error) {
+    console.error('=== getFastDashboardData() ERROR ===');
+    console.error('Error getting fast dashboard data:', error);
+    console.error('Error stack:', error.stack);
+    return [];
   }
 }
 
@@ -546,55 +712,99 @@ function getDashboardData() {
  */
 function getOverdueTaskDetails(sheetUrl) {
   try {
+    console.log(`Fetching overdue details from: ${sheetUrl}`);
+    
     // Extract file ID from the URL
     const fileId = extractFileIdFromUrl(sheetUrl);
     
     // Open the spreadsheet
     const spreadsheet = SpreadsheetApp.openById(fileId);
     
-    // Try to get the Dashboard sheet
-    let dashboardSheet;
+    // Get the first sheet (main task sheet) or try common sheet names
+    let taskSheet;
     try {
-      dashboardSheet = spreadsheet.getSheetByName('Dashboard');
+      // Try common sheet names first
+      const commonNames = ['Tasks', 'Task', 'Sheet1', 'Main'];
+      for (const name of commonNames) {
+        try {
+          taskSheet = spreadsheet.getSheetByName(name);
+          if (taskSheet) {
+            console.log(`Found task sheet: ${name}`);
+            break;
+          }
+        } catch (e) {
+          // Continue to next name
+        }
+      }
+      
+      // If no common name found, use the first sheet
+      if (!taskSheet) {
+        taskSheet = spreadsheet.getSheets()[0];
+        console.log(`Using first sheet: ${taskSheet.getName()}`);
+      }
     } catch (error) {
-      // If Dashboard sheet doesn't exist, return empty result
-      console.log(`Dashboard sheet not found in ${sheetUrl}`);
+      console.error(`Error accessing sheets in ${sheetUrl}:`, error);
       return {
         tasks: [],
-        hasError: false,
-        errorMessage: 'Dashboard sheet not found'
+        hasError: true,
+        errorMessage: 'Unable to access task sheet'
       };
     }
     
-    if (!dashboardSheet) {
-      console.log(`Dashboard sheet not found in ${sheetUrl}`);
+    if (!taskSheet) {
       return {
         tasks: [],
-        hasError: false,
-        errorMessage: 'Dashboard sheet not found'
+        hasError: true,
+        errorMessage: 'No task sheet found'
       };
     }
     
-    // Get data from rows 11-14 (header + 3 data rows)
-    const overdueRange = dashboardSheet.getRange('A11:B14');
-    const overdueData = overdueRange.getValues();
+    // Get all data from the sheet (assuming header in row 1)
+    const lastRow = taskSheet.getLastRow();
+    const lastCol = taskSheet.getLastColumn();
     
-    // Skip header row (row 11), process rows 12-14
-    const tasks = [];
-    for (let i = 1; i < overdueData.length; i++) {
-      const row = overdueData[i];
-      if (row[0] && row[0].toString().trim() !== '') {
-        tasks.push({
-          taskTitle: row[0].toString(),
-          delayDays: row[1] || 0
+    if (lastRow < 2) {
+      console.log(`No task data found in sheet`);
+      return {
+        tasks: [],
+        hasError: false,
+        errorMessage: 'No tasks found'
+      };
+    }
+    
+    // Get all task data (starting from row 2 to skip header)
+    const taskData = taskSheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+    
+    // Find overdue tasks by checking Status and Delay columns
+    // Based on your data structure: 
+    // Column B = Task Title, Column G = Status, Column J = Delay Days, Column I = On Time/Delayed
+    const overdueTasks = [];
+    
+    for (let i = 0; i < taskData.length; i++) {
+      const row = taskData[i];
+      const taskTitle = row[1]?.toString().trim(); // Column B
+      const status = row[6]?.toString().trim();    // Column G  
+      const delayStatus = row[8]?.toString().trim(); // Column I (On Time/Delayed)
+      const delayDays = row[9] || 0;               // Column J (Delay Days)
+      
+      // Check if task is overdue (has delay days > 0 and not completed)
+      if (taskTitle && 
+          delayStatus === 'Delayed' && 
+          delayDays > 0 && 
+          status !== 'Completed') {
+        
+        overdueTasks.push({
+          taskTitle: taskTitle,
+          delayDays: parseInt(delayDays) || 0
         });
       }
     }
     
-    // Limit to top 3 tasks
-    const topThreeTasks = tasks.slice(0, 3);
+    // Sort by delay days (highest first) and limit to top 3
+    overdueTasks.sort((a, b) => b.delayDays - a.delayDays);
+    const topThreeTasks = overdueTasks.slice(0, 3);
     
-    console.log(`Fetched ${topThreeTasks.length} overdue tasks from ${sheetUrl}`);
+    console.log(`Found ${overdueTasks.length} overdue tasks, returning top ${topThreeTasks.length}`);
     
     return {
       tasks: topThreeTasks,
@@ -613,8 +823,243 @@ function getOverdueTaskDetails(sheetUrl) {
 }
 
 // =============================================================================
+// STANDALONE DASHBOARD GENERATOR
+// =============================================================================
+
+/**
+ * Generates a standalone HTML dashboard file that can be hosted anywhere
+ */
+function generateStandaloneDashboard() {
+  try {
+    console.log('Generating standalone dashboard...');
+    
+    // Get dashboard data
+    const dashboardData = getFastDashboardData();
+    
+    // Read dashboard template
+    const dashboardTemplate = HtmlService.createTemplateFromFile('dashboard');
+    dashboardTemplate.dashboardData = dashboardData;
+    
+    // Generate HTML content
+    const htmlContent = dashboardTemplate.evaluate().getContent();
+    
+    // Create standalone HTML file in Google Drive
+    const fileName = `Task_Management_Dashboard_${Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd_HH-mm-ss')}.html`;
+    
+    // Get or create Dashboards folder
+    const dashboardsFolder = getOrCreateFolder('Generated_Dashboards');
+    
+    // Create HTML file
+    const htmlFile = dashboardsFolder.createFile(fileName, htmlContent, MimeType.HTML);
+    
+    // Make file publicly viewable
+    htmlFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    
+    const viewUrl = `https://drive.google.com/file/d/${htmlFile.getId()}/view`;
+    const downloadUrl = `https://drive.google.com/uc?export=download&id=${htmlFile.getId()}`;
+    
+    // Show success message with URLs
+    const ui = SpreadsheetApp.getUi();
+    const message = `Standalone Dashboard Generated Successfully!\n\n` +
+                   `File: ${fileName}\n\n` +
+                   `View URL: ${viewUrl}\n\n` +
+                   `Download URL: ${downloadUrl}\n\n` +
+                   `The HTML file is saved in your Drive under "Generated_Dashboards" folder.\n` +
+                   `You can download and host it on any web server.`;
+                   
+    ui.alert('Dashboard Generated!', message, ui.ButtonSet.OK);
+    
+    console.log('Standalone dashboard generated successfully:', fileName);
+    
+    return {
+      success: true,
+      fileName: fileName,
+      fileId: htmlFile.getId(),
+      viewUrl: viewUrl,
+      downloadUrl: downloadUrl
+    };
+    
+  } catch (error) {
+    console.error('Error generating standalone dashboard:', error);
+    SpreadsheetApp.getUi().alert('Error generating dashboard: ' + error.toString());
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Generates a self-contained HTML dashboard with embedded data (no external calls)
+ */
+function generateSelfContainedDashboard() {
+  try {
+    const dashboardData = getFastDashboardData();
+    
+    // Create self-contained HTML with embedded data
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Management Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .card { 
+            background: white; 
+            border-radius: 8px; 
+            padding: 20px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-left: 4px solid #4285f4;
+        }
+        .card-title { font-size: 18px; font-weight: bold; margin-bottom: 15px; color: #333; }
+        .metric { display: flex; justify-content: space-between; margin: 8px 0; }
+        .metric-label { color: #666; }
+        .metric-value { font-weight: bold; color: #333; }
+        .progress-bar { 
+            width: 100%; 
+            height: 8px; 
+            background-color: #e0e0e0; 
+            border-radius: 4px; 
+            overflow: hidden; 
+            margin: 10px 0;
+        }
+        .progress-fill { 
+            height: 100%; 
+            background-color: #4285f4; 
+            transition: width 0.3s ease;
+        }
+        .overdue { color: #d32f2f; font-weight: bold; }
+        .completed { color: #388e3c; font-weight: bold; }
+        .timestamp { text-align: center; color: #666; font-size: 12px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Task Management Dashboard</h1>
+            <p>Real-time view of your task management system</p>
+        </div>
+        
+        <div class="cards" id="dashboard-cards">
+            ${dashboardData.map(card => `
+                <div class="card">
+                    <div class="card-title">${card.cardTitle}</div>
+                    <div class="metric">
+                        <span class="metric-label">Template:</span>
+                        <span class="metric-value">${card.templateName}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Shared With:</span>
+                        <span class="metric-value">${card.sharedWith}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Total Tasks:</span>
+                        <span class="metric-value">${card.totalTasks}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Completed:</span>
+                        <span class="metric-value completed">${card.completedTasks}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Overdue:</span>
+                        <span class="metric-value overdue">${card.overdueTasks}</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${card.progressPercent}%"></div>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Progress:</span>
+                        <span class="metric-value">${card.progressPercent}%</span>
+                    </div>
+                    ${card.sheetUrl ? `
+                    <div class="metric">
+                        <span class="metric-label">Sheet:</span>
+                        <span class="metric-value"><a href="${card.sheetUrl}" target="_blank">Open Sheet</a></span>
+                    </div>
+                    ` : ''}
+                </div>
+            `).join('')}
+        </div>
+        
+        <div class="timestamp">
+            Generated: ${new Date().toLocaleString()}
+        </div>
+    </div>
+</body>
+</html>`;
+
+    return htmlContent;
+    
+  } catch (error) {
+    console.error('Error generating self-contained dashboard:', error);
+    return `<html><body><h1>Error</h1><p>${error.toString()}</p></body></html>`;
+  }
+}
+
+// =============================================================================
 // UTILITY FUNCTIONS
 // =============================================================================
+
+/**
+ * Shows URLs for the most recent dashboard files
+ */
+function showDashboardUrls() {
+  try {
+    const ui = SpreadsheetApp.getUi();
+    
+    // Get Generated_Dashboards folder
+    const dashboardsFolder = getOrCreateFolder('Generated_Dashboards');
+    const files = dashboardsFolder.getFiles();
+    
+    if (!files.hasNext()) {
+      ui.alert('No Dashboard Files Found', 'Please generate a dashboard first using "Generate Standalone Dashboard"', ui.ButtonSet.OK);
+      return;
+    }
+    
+    // Get the most recent dashboard file
+    let mostRecentFile = null;
+    let mostRecentDate = new Date(0);
+    
+    while (files.hasNext()) {
+      const file = files.next();
+      if (file.getName().includes('Task_Management_Dashboard') && file.getDateCreated() > mostRecentDate) {
+        mostRecentFile = file;
+        mostRecentDate = file.getDateCreated();
+      }
+    }
+    
+    if (!mostRecentFile) {
+      ui.alert('No Dashboard Files Found', 'Please generate a dashboard first using "Generate Standalone Dashboard"', ui.ButtonSet.OK);
+      return;
+    }
+    
+    const fileId = mostRecentFile.getId();
+    const fileName = mostRecentFile.getName();
+    
+    const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+    const viewUrl = `https://drive.google.com/file/d/${fileId}/view`;
+    
+    const message = `Latest Dashboard File: ${fileName}\n\n` +
+                   `📥 DOWNLOAD URL (recommended):\n${downloadUrl}\n\n` +
+                   `👁️ VIEW URL (shows code only):\n${viewUrl}\n\n` +
+                   `🌐 TO VIEW AS DASHBOARD:\n` +
+                   `1. Click download URL above\n` +
+                   `2. Save the HTML file to your computer\n` +
+                   `3. Double-click the file to open in browser\n\n` +
+                   `📤 FOR FREE HOSTING:\n` +
+                   `• Upload to GitHub Pages\n` +
+                   `• Upload to Netlify\n` +
+                   `• Upload to Vercel\n` +
+                   `• Use any free HTML hosting service`;
+    
+    ui.alert('Dashboard URLs Ready!', message, ui.ButtonSet.OK);
+    
+  } catch (error) {
+    SpreadsheetApp.getUi().alert('Error getting URLs: ' + error.toString());
+  }
+}
 
 /**
  * Include function for HTML templates
